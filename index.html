@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinTrack | Premium Finance Management</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="light-theme">
+    
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <div class="app-container">
+        
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-building-columns"></i>
+                <span>FinTrack PRO</span>
+            </div>
+            
+            <ul class="nav-links">
+                <li class="active" data-target="dashboard"><i class="fa-solid fa-border-all"></i> Dashboard</li>
+                <li data-target="ledger"><i class="fa-solid fa-file-invoice-dollar"></i> Ledger</li>
+                <li data-target="budget"><i class="fa-solid fa-bullseye"></i> Budget Planning</li>
+                <li data-target="savings"><i class="fa-solid fa-vault"></i> Savings</li>
+                <li data-target="analytics"><i class="fa-solid fa-chart-line"></i> Analytics</li>
+                <li data-target="settings"><i class="fa-solid fa-gear"></i> Settings</li>
+            </ul>
+
+            <div class="sidebar-footer">
+                <button id="theme-toggle" class="btn-icon" title="Toggle Theme">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            
+            <!-- Top Header -->
+            <header class="top-header">
+                <div class="header-left">
+                    <h1 id="page-title">Dashboard</h1>
+                    <p id="current-datetime"></p>
+                </div>
+                
+                <div class="header-center">
+                    <!-- Global Account Switcher -->
+                    <div class="account-switcher">
+                        <button class="account-btn active" data-account="personal"><i class="fa-solid fa-user"></i> Personal</button>
+                        <button class="account-btn" data-account="shared"><i class="fa-solid fa-users"></i> Shared</button>
+                        <button class="account-btn" data-account="company"><i class="fa-solid fa-briefcase"></i> Company</button>
+                    </div>
+                </div>
+
+                <div class="header-actions">
+                    <button id="btn-add-transaction" class="btn btn-primary">
+                        <i class="fa-solid fa-plus"></i> New Transaction
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="page-section active">
+                
+                <!-- Shared Account specific alert -->
+                <div id="shared-account-status" class="alert-box hidden">
+                    <!-- Populated by JS: Shows member contributions -->
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="summary-cards">
+                    <div class="card summary-card balance">
+                        <div class="card-icon"><i class="fa-solid fa-wallet"></i></div>
+                        <div class="card-info">
+                            <p>Available Balance</p>
+                            <h2 id="dash-balance">₹0.00</h2>
+                        </div>
+                    </div>
+                    <div class="card summary-card income">
+                        <div class="card-icon"><i class="fa-solid fa-arrow-turn-down"></i></div>
+                        <div class="card-info">
+                            <p>Monthly Credit (In)</p>
+                            <h2 id="dash-income">₹0.00</h2>
+                        </div>
+                    </div>
+                    <div class="card summary-card expense">
+                        <div class="card-icon"><i class="fa-solid fa-arrow-turn-up"></i></div>
+                        <div class="card-info">
+                            <p>Monthly Debit (Out)</p>
+                            <h2 id="dash-expense">₹0.00</h2>
+                        </div>
+                    </div>
+                    <div class="card summary-card savings">
+                        <div class="card-icon"><i class="fa-solid fa-piggy-bank"></i></div>
+                        <div class="card-info">
+                            <p>Savings / Reserve</p>
+                            <h2 id="dash-savings">₹0.00</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard Grid -->
+                <div class="dashboard-grid">
+                    <div class="card recent-transactions">
+                        <div class="card-header">
+                            <h3>Recent Activity</h3>
+                            <button class="btn-text" onclick="document.querySelector('li[data-target=\'ledger\']').click()">Full Statement</button>
+                        </div>
+                        <div class="transaction-list" id="recent-transaction-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    <div class="card quick-analytics">
+                        <div class="card-header">
+                            <h3>Cash Flow</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="quick-cashflow-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Ledger Section (Bank Statement Style) -->
+            <section id="ledger" class="page-section">
+                <div class="card table-card">
+                    <div class="card-header filters-header">
+                        <div class="search-box">
+                            <i class="fa-solid fa-search"></i>
+                            <input type="text" id="search-input" placeholder="Search transactions...">
+                        </div>
+                        <div class="filters">
+                            <select id="filter-type">
+                                <option value="all">All Types</option>
+                                <option value="credit">Credit (In)</option>
+                                <option value="debit">Debit (Out)</option>
+                            </select>
+                            <select id="filter-date">
+                                <option value="all">All Time</option>
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                                <option value="year">This Year</option>
+                            </select>
+                            <button id="btn-export-pdf" class="btn btn-secondary" style="padding: 0.5rem 1rem;"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                            <button id="btn-export-csv" class="btn btn-secondary" style="padding: 0.5rem 1rem;"><i class="fa-solid fa-file-csv"></i> CSV</button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="transaction-table bank-statement">
+                            <thead>
+                                <tr>
+                                    <th>Date/Time</th>
+                                    <th>Txn ID / Ref</th>
+                                    <th>Description / Category</th>
+                                    <th>Credit (In)</th>
+                                    <th>Debit (Out)</th>
+                                    <th>Balance</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ledger-table-body">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="pagination" id="pagination-controls"></div>
+                </div>
+            </section>
+
+            <!-- Budget Planning Section -->
+            <section id="budget" class="page-section">
+                <div class="budget-header">
+                    <div class="card budget-summary">
+                        <h3>Monthly Budget Overview</h3>
+                        <p>Total Allocated: <strong id="budget-allocated">₹0.00</strong></p>
+                        <p>Total Spent: <strong id="budget-spent">₹0.00</strong></p>
+                        <p>Remaining: <strong id="budget-remaining">₹0.00</strong></p>
+                        
+                        <div class="budget-mode-toggle mt-4">
+                            <label class="switch-label">Allocation Mode:</label>
+                            <select id="budget-allocation-mode" class="form-select inline">
+                                <option value="manual">Manual Amount</option>
+                                <option value="percentage">Percentage based on Income</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h3>Category Allocations</h3>
+                        <button id="btn-add-budget" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> Set Budget</button>
+                    </div>
+                    <div id="budget-list" class="budget-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Savings Section -->
+            <section id="savings" class="page-section">
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>Savings Overview</h3>
+                        <div class="saving-stats mt-4">
+                            <div class="saving-stat-item">
+                                <p>Total Savings</p>
+                                <h2 id="total-savings-amount">₹0.00</h2>
+                            </div>
+                            <div class="saving-stat-item">
+                                <p>Savings Goal</p>
+                                <h2><input type="number" id="savings-goal-input" class="inline-edit" placeholder="Enter Goal"></h2>
+                            </div>
+                        </div>
+                        <div class="progress-container mt-4">
+                            <div class="progress-header">
+                                <span>Goal Progress</span>
+                                <span id="savings-progress-text">0%</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="savings-progress-fill" class="progress-bar-fill income"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>Transfer Funds</h3>
+                        <p class="text-muted mb-4">Move money between your main balance and savings reserve.</p>
+                        <form id="transfer-form">
+                            <div class="form-group">
+                                <label>Direction</label>
+                                <select id="transfer-direction">
+                                    <option value="to_savings">Main Balance → Savings</option>
+                                    <option value="to_main">Savings → Main Balance</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Amount</label>
+                                <input type="number" id="transfer-amount" step="0.01" min="1" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Transfer Now</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Analytics Section -->
+            <section id="analytics" class="page-section">
+                <div class="charts-grid">
+                    <div class="card chart-card">
+                        <h3>Income vs Expense (6 Months)</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-income-expense"></canvas>
+                        </div>
+                    </div>
+                    <div class="card chart-card">
+                        <h3>Expense Distribution</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-category"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="settings" class="page-section">
+                <div class="settings-grid">
+                    <div class="card settings-card">
+                        <h3>Preferences</h3>
+                        <div class="form-group">
+                            <label>Default Currency</label>
+                            <select id="currency-select">
+                                <option value="INR">₹ INR (Indian Rupee)</option>
+                                <option value="USD">$ USD (US Dollar)</option>
+                                <option value="EUR">€ EUR (Euro)</option>
+                                <option value="GBP">£ GBP (British Pound)</option>
+                            </select>
+                        </div>
+                        <button id="btn-save-settings" class="btn btn-primary">Save Preferences</button>
+                    </div>
+
+                    <div class="card settings-card">
+                        <h3>Shared Account Members</h3>
+                        <p class="text-muted">Manage members contributing to the shared account.</p>
+                        <div id="shared-members-list" class="mb-2"></div>
+                        <div class="input-group">
+                            <input type="text" id="new-member-name" placeholder="Member Name">
+                            <button id="btn-add-member" class="btn btn-secondary">Add</button>
+                        </div>
+                    </div>
+
+                    <div class="card settings-card" style="grid-column: 1 / -1;">
+                        <h3>Data Management</h3>
+                        <p class="text-muted">Backup your data or restore from a previous backup.</p>
+                        <div class="data-actions">
+                            <button id="btn-backup-data" class="btn btn-secondary"><i class="fa-solid fa-download"></i> Download Backup</button>
+                            <label for="restore-file" class="btn btn-secondary file-upload-btn"><i class="fa-solid fa-upload"></i> Restore Backup</label>
+                            <input type="file" id="restore-file" accept=".json" class="hidden">
+                        </div>
+                        
+                        <div class="danger-zone">
+                            <h4>Danger Zone</h4>
+                            <p class="text-muted">Resetting data will clear ALL transactions across ALL accounts.</p>
+                            <button id="btn-reset-data" class="btn btn-danger"><i class="fa-solid fa-trash"></i> Reset All Data</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+        </main>
+    </div>
+
+    <!-- Transaction Modal -->
+    <div id="transaction-modal" class="modal">
+        <div class="modal-content large-modal">
+            <div class="modal-header">
+                <h2 id="modal-title">New Transaction</h2>
+                <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="transaction-form">
+                <input type="hidden" id="txn-id">
+                
+                <div class="type-selector">
+                    <input type="radio" id="type-debit" name="txn-type" value="debit" checked>
+                    <label for="type-debit" class="type-btn expense">Debit (Out)</label>
+                    
+                    <input type="radio" id="type-credit" name="txn-type" value="credit">
+                    <label for="type-credit" class="type-btn income">Credit (In)</label>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Amount *</label>
+                        <input type="number" id="txn-amount" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Date & Time *</label>
+                        <input type="datetime-local" id="txn-date" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Category *</label>
+                        <select id="txn-category" required></select>
+                    </div>
+                    <div class="form-group" id="member-group" style="display:none;">
+                        <label>Member (Who paid?)</label>
+                        <select id="txn-member"></select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description *</label>
+                    <input type="text" id="txn-description" placeholder="e.g. Rent Payment, AWS Hosting..." required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Payment Method *</label>
+                        <select id="txn-payment" required>
+                            <option value="UPI">UPI</option>
+                            <option value="Net Banking">Net Banking</option>
+                            <option value="Credit Card">Credit Card</option>
+                            <option value="Debit Card">Debit Card</option>
+                            <option value="Cash">Cash</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Reference No. (Optional)</label>
+                        <input type="text" id="txn-ref" placeholder="Txn ID, Cheque No...">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group mt-2">
+                        <input type="checkbox" id="txn-recurring">
+                        <label for="txn-recurring">Set as Recurring Monthly Transaction</label>
+                    </div>
+                </div>
+
+                <div class="form-group" id="deduct-personal-group" style="display:none;">
+                    <div class="checkbox-group mt-2">
+                        <input type="checkbox" id="txn-deduct-personal" checked>
+                        <label for="txn-deduct-personal">Deduct this deposit from my Personal Wallet</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Notes (Optional)</label>
+                    <textarea id="txn-notes" rows="2"></textarea>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" id="btn-reset-form" class="btn btn-secondary">Reset</button>
+                    <button type="submit" class="btn btn-primary">Save Transaction</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Budget Modal -->
+    <div id="budget-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Set Category Budget</h2>
+                <button class="close-modal-budget"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="budget-form">
+                <div class="form-group" style="padding: 1.5rem 1.5rem 0;">
+                    <label>Category</label>
+                    <select id="budget-category" required></select>
+                </div>
+                <div class="form-group" style="padding: 0 1.5rem 0;">
+                    <label id="budget-amount-label">Limit Amount</label>
+                    <input type="number" id="budget-amount" step="0.01" min="0.01" required>
+                </div>
+                <div class="modal-footer" style="padding: 1.5rem;">
+                    <button type="submit" class="btn btn-primary">Save Budget</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    
+    <script src="utils.js"></script>
+    <script src="storage.js"></script>
+    <script src="ledger.js"></script>
+    <script src="budget.js"></script>
+    <script src="charts.js"></script>
+    <script src="pdf.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

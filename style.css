@@ -1,0 +1,440 @@
+/* ==========================================================================
+   FinTrack PRO - Premium Fintech CSS
+   ========================================================================== */
+
+:root {
+    /* Premium Color Palette */
+    --primary: #2563eb;       /* Royal Blue */
+    --primary-hover: #1d4ed8;
+    --primary-light: #eff6ff;
+    
+    --credit: #10b981;        /* Emerald Green */
+    --credit-bg: rgba(16, 185, 129, 0.1);
+    
+    --debit: #ef4444;         /* Red */
+    --debit-bg: rgba(239, 68, 68, 0.1);
+    
+    --warning: #f59e0b;       /* Amber */
+    --warning-bg: rgba(245, 158, 11, 0.1);
+    
+    /* Light Theme (Default) */
+    --bg-main: #f1f5f9;       /* Slate 100 */
+    --bg-card: rgba(255, 255, 255, 0.95);
+    --bg-sidebar: #ffffff;
+    --bg-header: rgba(255, 255, 255, 0.9);
+    
+    --text-primary: #0f172a;  /* Slate 900 */
+    --text-secondary: #475569;/* Slate 600 */
+    --text-muted: #94a3b8;    /* Slate 400 */
+    
+    --border-color: #e2e8f0;
+    --border-light: #f1f5f9;
+    
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+    
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.25rem;
+}
+
+.dark-theme {
+    --primary: #3b82f6;
+    --primary-light: rgba(59, 130, 246, 0.15);
+    
+    --bg-main: #0f172a;       /* Slate 900 */
+    --bg-card: rgba(30, 41, 59, 0.95); /* Slate 800 */
+    --bg-sidebar: #0f172a;
+    --bg-header: rgba(15, 23, 42, 0.9);
+    
+    --text-primary: #f8fafc;  /* Slate 50 */
+    --text-secondary: #cbd5e1;/* Slate 300 */
+    --text-muted: #64748b;    /* Slate 500 */
+    
+    --border-color: #334155;
+    --border-light: #1e293b;
+    
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* ==========================================================================
+   Reset & Base Styles
+   ========================================================================== */
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    overflow-x: hidden;
+    font-size: 14px;
+}
+
+h1, h2, h3, h4, h5, h6 { font-weight: 600; color: var(--text-primary); letter-spacing: -0.025em; }
+p { color: var(--text-secondary); line-height: 1.5; }
+ul { list-style: none; }
+a { text-decoration: none; color: inherit; }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ==========================================================================
+   Layout Structure
+   ========================================================================== */
+.app-container { display: flex; height: 100vh; overflow: hidden; }
+
+/* Sidebar */
+.sidebar {
+    width: 260px;
+    background-color: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+}
+
+.logo {
+    padding: 2rem 1.5rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    letter-spacing: -0.025em;
+}
+
+.nav-links { flex: 1; padding: 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.25rem; }
+
+.nav-links li {
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-weight: 500;
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+}
+.nav-links li:hover { color: var(--primary); background-color: var(--primary-light); }
+.nav-links li.active { color: var(--primary); background-color: var(--primary-light); font-weight: 600; }
+
+.sidebar-footer { padding: 1.5rem; border-top: 1px solid var(--border-light); }
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    position: relative;
+}
+
+/* Header & Account Switcher */
+.top-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 2.5rem;
+    position: sticky;
+    top: 0;
+    background: var(--bg-header);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 50;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.header-left h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+.header-left p { font-size: 0.8rem; color: var(--text-muted); }
+
+.account-switcher {
+    display: flex;
+    background: var(--bg-main);
+    padding: 0.25rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+}
+
+.account-btn {
+    background: transparent;
+    border: none;
+    padding: 0.5rem 1.25rem;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.account-btn:hover { color: var(--text-primary); }
+.account-btn.active {
+    background: var(--bg-card);
+    color: var(--primary);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Sections */
+.page-section { display: none; padding: 2.5rem; animation: fadeIn 0.4s ease-out; }
+.page-section.active { display: block; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-4 { margin-top: 1.5rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-4 { margin-bottom: 1.5rem; }
+.w-100 { width: 100%; }
+
+/* ==========================================================================
+   Components (Cards, Buttons, Inputs, Alerts)
+   ========================================================================== */
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 1.5rem;
+    transition: box-shadow 0.2s ease;
+}
+.card:hover { box-shadow: var(--shadow-md); }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+
+/* Buttons */
+.btn {
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+}
+.btn-sm { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+.btn-primary { background-color: var(--primary); color: white; }
+.btn-primary:hover { background-color: var(--primary-hover); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); transform: translateY(-1px); }
+.btn-secondary { background-color: var(--bg-main); color: var(--text-primary); border-color: var(--border-color); }
+.btn-secondary:hover { background-color: var(--border-light); }
+.btn-danger { background-color: var(--debit-bg); color: var(--debit); border-color: rgba(239, 68, 68, 0.2); }
+.btn-danger:hover { background-color: rgba(239, 68, 68, 0.15); }
+
+.btn-icon { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0.5rem; font-size: 1.1rem; border-radius: 50%; transition: all 0.2s; }
+.btn-icon:hover { color: var(--text-primary); background: var(--bg-main); }
+.btn-text { background: none; border: none; color: var(--primary); font-weight: 500; cursor: pointer; font-size: 0.875rem; }
+.btn-text:hover { text-decoration: underline; }
+
+/* Inputs */
+.form-group { margin-bottom: 1.25rem; }
+.form-row { display: flex; gap: 1.25rem; }
+.form-row > .form-group { flex: 1; }
+label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.4rem; }
+
+input[type="text"], input[type="number"], input[type="datetime-local"], select, textarea {
+    width: 100%;
+    padding: 0.625rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); background-color: var(--bg-card); }
+.inline { display: inline-block; width: auto; }
+.input-group { display: flex; gap: 0.5rem; }
+
+/* Alerts */
+.alert-box {
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-md);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+.alert-box.info { background: var(--primary-light); border-left: 4px solid var(--primary); color: var(--primary); }
+.alert-box.warning { background: var(--warning-bg); border-left: 4px solid var(--warning); color: var(--warning); }
+.alert-box.hidden { display: none; }
+
+/* ==========================================================================
+   Dashboard
+   ========================================================================== */
+.summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2rem; }
+.summary-card { display: flex; align-items: center; gap: 1.25rem; padding: 1.5rem; }
+.card-icon { width: 3rem; height: 3rem; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
+.balance .card-icon { background: var(--primary-light); color: var(--primary); }
+.income .card-icon { background: var(--credit-bg); color: var(--credit); }
+.expense .card-icon { background: var(--debit-bg); color: var(--debit); }
+.savings .card-icon { background: var(--warning-bg); color: var(--warning); }
+.card-info p { font-size: 0.8rem; margin-bottom: 0.2rem; }
+.card-info h2 { font-size: 1.5rem; letter-spacing: -0.025em; }
+
+.dashboard-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
+.transaction-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.txn-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1rem; border-radius: var(--radius-md); background: var(--bg-main); border: 1px solid var(--border-light);
+}
+.txn-item-left { display: flex; align-items: center; gap: 1rem; }
+.txn-icon { width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; color: white; }
+.txn-icon.credit-icon { background-color: var(--credit); }
+.txn-icon.debit-icon { background-color: var(--debit); }
+.txn-details h4 { font-size: 0.9rem; margin-bottom: 0.1rem; }
+.txn-details p { font-size: 0.75rem; color: var(--text-muted); }
+.txn-amount { font-weight: 600; font-size: 0.95rem; }
+.text-credit { color: var(--credit) !important; }
+.text-debit { color: var(--debit) !important; }
+
+/* ==========================================================================
+   Ledger (Bank Statement)
+   ========================================================================== */
+.table-card { padding: 0; overflow: hidden; }
+.filters-header { padding: 1.5rem; margin-bottom: 0; border-bottom: 1px solid var(--border-light); }
+.search-box { position: relative; width: 300px; }
+.search-box i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+.search-box input { padding-left: 2.5rem; }
+.filters { display: flex; gap: 0.75rem; }
+
+.table-responsive { width: 100%; overflow-x: auto; }
+.bank-statement { width: 100%; border-collapse: collapse; min-width: 1000px; font-variant-numeric: tabular-nums; }
+.bank-statement th, .bank-statement td { padding: 1rem 1.25rem; text-align: left; border-bottom: 1px solid var(--border-light); font-size: 0.85rem; }
+.bank-statement th { background-color: var(--bg-main); font-weight: 600; color: var(--text-secondary); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; }
+.bank-statement tbody tr { transition: background-color 0.2s; }
+.bank-statement tbody tr:hover { background-color: var(--bg-main); }
+
+.badge { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+.badge.credit { background: var(--credit-bg); color: var(--credit); }
+.badge.debit { background: var(--debit-bg); color: var(--debit); }
+
+.action-btns { display: flex; gap: 0.5rem; }
+.action-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); transition: color 0.2s; }
+.action-btn.delete:hover { color: var(--debit); }
+.pagination { padding: 1rem 1.5rem; display: flex; justify-content: flex-end; gap: 0.5rem; background: var(--bg-main); border-top: 1px solid var(--border-light); }
+.page-btn { width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-card); cursor: pointer; }
+.page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+.page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ==========================================================================
+   Budget & Savings
+   ========================================================================== */
+.budget-summary { background: linear-gradient(135deg, var(--primary), #818cf8); color: white; border: none; }
+.budget-summary h3, .budget-summary p, .budget-summary label { color: white; }
+.budget-summary p { font-size: 1.1rem; margin-bottom: 0.5rem; opacity: 0.9; }
+.budget-summary strong { font-size: 1.25rem; color: white; }
+.budget-summary select { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; margin-left: 1rem; }
+.budget-summary select option { background: var(--bg-card); color: var(--text-primary); }
+
+.budget-list { display: flex; flex-direction: column; gap: 1rem; }
+.budget-item { padding: 1.25rem; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-main); }
+.budget-item-header { display: flex; justify-content: space-between; margin-bottom: 0.75rem; font-weight: 500; }
+.progress-container { width: 100%; }
+.progress-header { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.4rem; color: var(--text-secondary); }
+.progress-bar-bg { width: 100%; height: 8px; background-color: var(--border-color); border-radius: 4px; overflow: hidden; }
+.progress-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+.progress-bar-fill.good { background-color: var(--credit); }
+.progress-bar-fill.warning { background-color: var(--warning); }
+.progress-bar-fill.danger { background-color: var(--debit); }
+.progress-bar-fill.income { background-color: var(--primary); }
+
+.saving-stats { display: flex; gap: 2rem; border-bottom: 1px solid var(--border-light); padding-bottom: 1.5rem; }
+.saving-stat-item h2 { font-size: 2rem; color: var(--primary); margin-top: 0.5rem; }
+.inline-edit { font-size: 2rem; font-weight: 600; color: var(--primary); background: transparent; border: none; border-bottom: 1px dashed var(--border-color); padding: 0; width: 150px; }
+.inline-edit:focus { border-bottom: 1px solid var(--primary); box-shadow: none; background: transparent; }
+
+/* ==========================================================================
+   Analytics
+   ========================================================================== */
+.chart-container { position: relative; height: 300px; width: 100%; }
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.chart-card h3 { margin-bottom: 1.5rem; font-size: 1.1rem; }
+
+/* ==========================================================================
+   Modal
+   ========================================================================== */
+.modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.3s ease;
+}
+.modal.show { opacity: 1; visibility: visible; }
+.modal-content {
+    background-color: var(--bg-card); width: 90%; max-width: 450px;
+    border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); border: 1px solid var(--border-light);
+    transform: translateY(-20px); transition: transform 0.3s ease;
+}
+.large-modal { max-width: 600px; }
+.modal.show .modal-content { transform: translateY(0); }
+.modal-header { padding: 1.5rem; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; }
+#transaction-form { padding: 1.5rem; }
+.type-selector { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+.type-selector input[type="radio"] { display: none; }
+.type-btn {
+    flex: 1; text-align: center; padding: 0.75rem; border-radius: var(--radius-md);
+    border: 1px solid var(--border-color); cursor: pointer; font-weight: 500;
+    color: var(--text-secondary); transition: all 0.2s; background: var(--bg-main);
+}
+#type-debit:checked + .type-btn.expense { background-color: var(--debit-bg); color: var(--debit); border-color: var(--debit); }
+#type-credit:checked + .type-btn.income { background-color: var(--credit-bg); color: var(--credit); border-color: var(--credit); }
+.modal-footer { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1rem; }
+.checkbox-group { display: flex; align-items: center; gap: 0.5rem; }
+
+/* ==========================================================================
+   Settings & Shared
+   ========================================================================== */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.settings-card h3 { margin-bottom: 1rem; border-bottom: 1px solid var(--border-light); padding-bottom: 0.75rem; }
+.data-actions { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+.file-upload-btn { cursor: pointer; margin: 0; }
+.hidden { display: none !important; }
+.danger-zone { border: 1px solid rgba(239, 68, 68, 0.3); padding: 1.25rem; border-radius: var(--radius-md); background-color: var(--debit-bg); }
+
+/* ==========================================================================
+   Toast Notifications
+   ========================================================================== */
+.toast-container { position: fixed; bottom: 2rem; right: 2rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; }
+.toast {
+    padding: 1rem 1.25rem; border-radius: var(--radius-md); background: var(--bg-card);
+    box-shadow: var(--shadow-lg); border-left: 4px solid var(--primary);
+    display: flex; align-items: center; gap: 0.75rem; font-size: 0.875rem; font-weight: 500;
+    animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; min-width: 250px;
+}
+.toast.success { border-left-color: var(--credit); }
+.toast.error { border-left-color: var(--debit); }
+.toast.warning { border-left-color: var(--warning); }
+.toast.hide { animation: slideOutRight 0.3s ease forwards; }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideInRight { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideOutRight { from { transform: translateX(0); opacity: 1; } to { transform: translateX(120%); opacity: 0; } }
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .summary-cards { grid-template-columns: repeat(2, 1fr); }
+    .dashboard-grid, .charts-grid, .settings-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+    .sidebar { position: fixed; left: -260px; height: 100vh; box-shadow: var(--shadow-lg); transition: left 0.3s ease; }
+    .sidebar.open { left: 0; }
+    .top-header { flex-direction: column; gap: 1rem; padding: 1rem; }
+    .filters-header, .filters { flex-direction: column; width: 100%; }
+    .search-box { width: 100%; }
+    .form-row { flex-direction: column; gap: 0; }
+    .saving-stats { flex-direction: column; gap: 1rem; }
+}
