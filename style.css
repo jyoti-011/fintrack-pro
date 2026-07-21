@@ -375,6 +375,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .modal.show { opacity: 1; visibility: visible; }
 .modal-content {
     background-color: var(--bg-card); width: 90%; max-width: 450px;
+    max-height: 90vh; overflow-y: auto;
     border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); border: 1px solid var(--border-light);
     transform: translateY(-20px); transition: transform 0.3s ease;
 }
