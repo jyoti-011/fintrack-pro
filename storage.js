@@ -95,7 +95,16 @@ const getAccountTotals = (accountType) => {
 };
 
 // --- Shared Members ---
-const getSharedMembers = () => getItem(STORAGE_KEYS.SHARED_MEMBERS, []);
+const getSharedMembers = () => {
+    const members = getItem(STORAGE_KEYS.SHARED_MEMBERS, null);
+    // If no members are found or the array is empty, initialize with defaults
+    if (!members || members.length === 0) {
+        const defaultMembers = ['Ankita', 'Jyoti'];
+        setItem(STORAGE_KEYS.SHARED_MEMBERS, defaultMembers);
+        return defaultMembers;
+    }
+    return members;
+};
 const saveSharedMembers = (members) => setItem(STORAGE_KEYS.SHARED_MEMBERS, members);
 
 // --- Budgets ---
@@ -103,9 +112,6 @@ const saveSharedMembers = (members) => setItem(STORAGE_KEYS.SHARED_MEMBERS, memb
 const getBudgets = () => getItem(STORAGE_KEYS.BUDGETS, {});
 const saveBudgets = (budgets) => setItem(STORAGE_KEYS.BUDGETS, budgets);
 
-// --- Savings ---
-const getSavingsData = () => getItem(STORAGE_KEYS.SAVINGS, { balance: 0, goal: 0 });
-const saveSavingsData = (data) => setItem(STORAGE_KEYS.SAVINGS, data);
 
 // --- Global Data Actions ---
 const exportAllData = () => {
@@ -115,8 +121,7 @@ const exportAllData = () => {
         shared: getTransactions('shared'),
         company: getTransactions('company'),
         members: getSharedMembers(),
-        budgets: getBudgets(),
-        savings: getSavingsData()
+        budgets: getBudgets()
     };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
     const downloadAnchorNode = document.createElement('a');
@@ -136,7 +141,6 @@ const importAllData = (jsonData) => {
         if(data.company) saveTransactions('company', data.company);
         if(data.members) saveSharedMembers(data.members);
         if(data.budgets) saveBudgets(data.budgets);
-        if(data.savings) saveSavingsData(data.savings);
         return true;
     } catch(e) {
         console.error("Import failed:", e);

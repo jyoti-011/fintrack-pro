@@ -8,6 +8,7 @@ const state = {
     activeAccount: 'personal', // personal, shared, company
     transactions: [],
     filteredTransactions: [],
+    expenseTabSelectedMonth: null
 };
 
 const DOM = {
@@ -25,6 +26,15 @@ const DOM = {
     dashSavings: document.getElementById('dash-savings'),
     recentTxnList: document.getElementById('recent-transaction-list'),
     sharedStatus: document.getElementById('shared-account-status'),
+
+    // Expenses Explorer
+    expMonthSelect: document.getElementById('expense-month-select'),
+    expBalance: document.getElementById('exp-balance'),
+    expIncome: document.getElementById('exp-income'),
+    expExpense: document.getElementById('exp-expense'),
+    expSaved: document.getElementById('exp-saved'),
+    expListTitle: document.getElementById('exp-list-title'),
+    expTableBody: document.getElementById('exp-table-body'),
 
     // Ledger Filters
     searchInput: document.getElementById('search-input'),
@@ -107,6 +117,7 @@ const updateUI = () => {
 
     // Render Sub-Modules
     renderDashboard();
+    renderExpensesTab();
     if(window.Budget) window.Budget.render(state.transactions, state.activeAccount, state.settings);
     if(window.Charts && document.getElementById('analytics').classList.contains('active')) {
         window.Charts.render(state.transactions);
@@ -138,6 +149,24 @@ const switchAccount = (account) => {
 };
 
 // --- Dashboard Logic ---
+const getMonthlyHistory = (transactions) => {
+    const history = {};
+    transactions.forEach(t => {
+        if (!t.date) return;
+        const monthKey = t.date.slice(0, 7); // YYYY-MM
+        if (!history[monthKey]) history[monthKey] = { income: 0, expense: 0 };
+        if (t.type === 'credit') history[monthKey].income += parseFloat(t.amount);
+        else if (t.type === 'debit') history[monthKey].expense += parseFloat(t.amount);
+    });
+    
+    return Object.keys(history).map(key => ({
+        month: key,
+        income: history[key].income,
+        expense: history[key].expense,
+        saved: history[key].income - history[key].expense
+    })).sort((a, b) => b.month.localeCompare(a.month));
+};
+
 const renderDashboard = () => {
     const totals = getAccountTotals(state.activeAccount);
     const curr = state.settings.currency;
@@ -158,9 +187,10 @@ const renderDashboard = () => {
 
     // Savings logic (only for personal)
     if (state.activeAccount === 'personal') {
-        const sav = getSavingsData();
-        DOM.dashSavings.textContent = formatCurrency(sav.balance, curr);
-        renderSavingsView(sav);
+        const history = getMonthlyHistory(state.transactions);
+        const totalSav = history.reduce((acc, currItem) => acc + currItem.saved, 0);
+        DOM.dashSavings.textContent = formatCurrency(totalSav, curr);
+        renderSavingsView(history);
     } else {
         DOM.dashSavings.textContent = 'N/A';
     }
@@ -251,14 +281,124 @@ const renderSharedStatus = () => {
     DOM.sharedStatus.classList.remove('hidden');
 };
 
-const renderSavingsView = (sav) => {
+const renderSavingsView = (history) => {
     const curr = state.settings.currency;
-    document.getElementById('total-savings-amount').textContent = formatCurrency(sav.balance, curr);
-    document.getElementById('savings-goal-input').value = sav.goal;
+    const totalSav = history.reduce((acc, current) => acc + current.saved, 0);
+    const amountEl = document.getElementById('total-savings-amount');
+    if(amountEl) amountEl.textContent = formatCurrency(totalSav, curr);
     
-    let percent = sav.goal > 0 ? (sav.balance / sav.goal) * 100 : 0;
-    document.getElementById('savings-progress-text').textContent = `${percent.toFixed(1)}%`;
-    document.getElementById('savings-progress-fill').style.width = `${Math.min(percent, 100)}%`;
+    const listEl = document.getElementById('savings-list');
+    if (!listEl) return;
+    
+    if (history.length === 0) {
+        listEl.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 1rem; color: var(--text-muted);">No transaction history yet.</td></tr>';
+        return;
+    }
+
+    listEl.innerHTML = history.map(h => {
+        // Format YYYY-MM nicely
+        const [year, month] = h.month.split('-');
+        const d = new Date(year, month - 1);
+        const monthLabel = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+        
+        return `
+            <tr>
+                <td><strong>${monthLabel}</strong></td>
+                <td class="text-credit">${formatCurrency(h.income, curr)}</td>
+                <td class="text-debit">${formatCurrency(h.expense, curr)}</td>
+                <td style="font-weight: 600; color: ${h.saved >= 0 ? 'var(--credit)' : 'var(--debit)'}">
+                    ${formatCurrency(h.saved, curr)}
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+// --- Expenses Explorer Tab ---
+const renderExpensesTab = () => {
+    const curr = state.settings.currency;
+    
+    // 1. Determine unique months
+    const uniqueMonths = new Set();
+    state.transactions.forEach(t => {
+        if(t.date) uniqueMonths.add(t.date.slice(0, 7)); // YYYY-MM
+    });
+    
+    let monthsArr = Array.from(uniqueMonths).sort((a, b) => b.localeCompare(a));
+    
+    // Fallback if empty
+    if(monthsArr.length === 0) {
+        const todayStr = new Date().toISOString().slice(0, 7);
+        monthsArr.push(todayStr);
+    }
+    
+    // Retain selection or pick latest
+    if (!state.expenseTabSelectedMonth || !monthsArr.includes(state.expenseTabSelectedMonth)) {
+        state.expenseTabSelectedMonth = monthsArr[0];
+    }
+    
+    // Populate dropdown
+    if (DOM.expMonthSelect) {
+        DOM.expMonthSelect.innerHTML = monthsArr.map(m => {
+            const [year, month] = m.split('-');
+            const d = new Date(year, month - 1);
+            const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+            return `<option value="${m}" ${m === state.expenseTabSelectedMonth ? 'selected' : ''}>${label}</option>`;
+        }).join('');
+    }
+    
+    // 2. Filter txns for this month
+    let monthTxns = state.transactions.filter(t => t.date && t.date.slice(0, 7) === state.expenseTabSelectedMonth);
+    
+    // We only want to show debits in the list as requested
+    let expensesOnly = monthTxns.filter(t => t.type === 'debit');
+    
+    // Calculate totals for cards (Income, Expense, Saved)
+    let mIncome = 0;
+    let mExpense = 0;
+    monthTxns.forEach(t => {
+        if(t.type === 'credit') mIncome += parseFloat(t.amount);
+        if(t.type === 'debit') mExpense += parseFloat(t.amount);
+    });
+    let mSaved = mIncome - mExpense;
+    
+    if (DOM.expBalance) DOM.expBalance.textContent = formatCurrency(mSaved, curr);
+    if (DOM.expIncome) DOM.expIncome.textContent = formatCurrency(mIncome, curr);
+    if (DOM.expExpense) DOM.expExpense.textContent = formatCurrency(mExpense, curr);
+    if (DOM.expSaved) DOM.expSaved.textContent = formatCurrency(mSaved, curr);
+    
+    // Update List Title
+    if (DOM.expListTitle && state.expenseTabSelectedMonth) {
+        const [y, mStr] = state.expenseTabSelectedMonth.split('-');
+        const labelDate = new Date(y, mStr - 1);
+        DOM.expListTitle.textContent = `${labelDate.toLocaleString('default', { month: 'long', year: 'numeric' })} Expenses`;
+    }
+    
+    // Render list
+    if (DOM.expTableBody) {
+        if (expensesOnly.length === 0) {
+            DOM.expTableBody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 1rem; color: var(--text-muted);">No expenses recorded for this month.</td></tr>';
+            return;
+        }
+        
+        DOM.expTableBody.innerHTML = expensesOnly.map(t => {
+            return `
+                <tr>
+                    <td>
+                        <div style="font-weight: 500;">${formatDateOnly(t.date)}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${formatTimeOnly(t.date)}</div>
+                    </td>
+                    <td>
+                        <div style="font-weight: 500;">${t.description}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${t.category} ${t.member ? '• ' + t.member : ''}</div>
+                    </td>
+                    <td class="text-debit">
+                        -${formatCurrency(t.amount, curr)}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
 };
 
 // --- Filters & Ledger Delegation ---
@@ -357,6 +497,10 @@ const setupEventListeners = () => {
     DOM.searchInput.addEventListener('input', () => { if(window.Ledger) Ledger.currentPage = 1; updateUI(); });
     DOM.filterType.addEventListener('change', () => { if(window.Ledger) Ledger.currentPage = 1; updateUI(); });
     DOM.filterDate.addEventListener('change', () => { if(window.Ledger) Ledger.currentPage = 1; updateUI(); });
+    DOM.expMonthSelect.addEventListener('change', (e) => {
+        state.expenseTabSelectedMonth = e.target.value;
+        renderExpensesTab();
+    });
 
     // Export Listeners
     document.getElementById('btn-export-pdf').addEventListener('click', () => window.ExportService.toPDF(state.filteredTransactions, state.activeAccount, state.settings));
@@ -541,45 +685,7 @@ const setupSettingsListeners = () => {
         renderMembers();
     };
 
-    // Savings Goal
-    document.getElementById('savings-goal-input').addEventListener('change', (e) => {
-        const sav = getSavingsData();
-        sav.goal = parseFloat(e.target.value) || 0;
-        saveSavingsData(sav);
-        updateUI();
-    });
-
-    // Transfer Funds
-    document.getElementById('transfer-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const amt = parseFloat(document.getElementById('transfer-amount').value);
-        const dir = document.getElementById('transfer-direction').value;
-        const sav = getSavingsData();
-
-        if (dir === 'to_savings') {
-            const totals = getAccountTotals('personal');
-            if (totals.balance < amt) return showToast('Insufficient main balance.', 'error');
-            sav.balance += amt;
-            // Record debit in personal
-            addTransaction('personal', {
-                id: generateID(), type: 'debit', amount: amt, date: new Date().toISOString(),
-                category: 'Savings Transfer', description: 'Transferred to Savings Reserve', paymentMethod: 'System'
-            });
-        } else {
-            if (sav.balance < amt) return showToast('Insufficient savings balance.', 'error');
-            sav.balance -= amt;
-            // Record credit in personal
-            addTransaction('personal', {
-                id: generateID(), type: 'credit', amount: amt, date: new Date().toISOString(),
-                category: 'Savings Transfer', description: 'Transferred from Savings Reserve', paymentMethod: 'System'
-            });
-        }
-        
-        saveSavingsData(sav);
-        document.getElementById('transfer-form').reset();
-        showToast('Transfer completed successfully!');
-        updateUI();
-    });
+    // Automated Savings - No manual form required
 
     // Budget Setup
     document.getElementById('btn-add-budget').addEventListener('click', () => {

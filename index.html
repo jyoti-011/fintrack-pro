@@ -33,6 +33,7 @@
             <ul class="nav-links">
                 <li class="active" data-target="dashboard"><i class="fa-solid fa-border-all"></i> Dashboard</li>
                 <li data-target="ledger"><i class="fa-solid fa-file-invoice-dollar"></i> Ledger</li>
+                <li data-target="expenses"><i class="fa-solid fa-calendar-days"></i> Expenses</li>
                 <li data-target="budget"><i class="fa-solid fa-bullseye"></i> Budget Planning</li>
                 <li data-target="savings"><i class="fa-solid fa-vault"></i> Savings</li>
                 <li data-target="analytics"><i class="fa-solid fa-chart-line"></i> Analytics</li>
@@ -184,6 +185,67 @@
                 </div>
             </section>
 
+            <!-- Monthly Expenses Explorer Section -->
+            <section id="expenses" class="page-section">
+                <div class="card mb-4" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Monthly Expenses Report</h3>
+                    <select id="expense-month-select" class="form-select" style="width: 200px;">
+                        <option value="">Select Month...</option>
+                    </select>
+                </div>
+
+                <div class="summary-cards">
+                    <div class="card summary-card balance">
+                        <div class="card-icon"><i class="fa-solid fa-wallet"></i></div>
+                        <div class="card-info">
+                            <p>Available Balance (End of Month)</p>
+                            <h2 id="exp-balance">₹0.00</h2>
+                        </div>
+                    </div>
+                    <div class="card summary-card income">
+                        <div class="card-icon"><i class="fa-solid fa-arrow-turn-down"></i></div>
+                        <div class="card-info">
+                            <p>Month Credit (In)</p>
+                            <h2 id="exp-income">₹0.00</h2>
+                        </div>
+                    </div>
+                    <div class="card summary-card expense">
+                        <div class="card-icon"><i class="fa-solid fa-arrow-turn-up"></i></div>
+                        <div class="card-info">
+                            <p>Month Debit (Out)</p>
+                            <h2 id="exp-expense">₹0.00</h2>
+                        </div>
+                    </div>
+                    <div class="card summary-card savings">
+                        <div class="card-icon"><i class="fa-solid fa-piggy-bank"></i></div>
+                        <div class="card-info">
+                            <p>Net Saved</p>
+                            <h2 id="exp-saved">₹0.00</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4 table-card">
+                    <div class="card-header">
+                        <h3 id="exp-list-title">Expenses List</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="transaction-table bank-statement">
+                            <thead>
+                                <tr>
+                                    <th>Date/Time</th>
+                                    <th>Description / Category</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="exp-table-body">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <!-- Budget Planning Section -->
             <section id="budget" class="page-section">
                 <div class="budget-header">
@@ -216,47 +278,36 @@
 
             <!-- Savings Section -->
             <section id="savings" class="page-section">
-                <div class="dashboard-grid">
-                    <div class="card">
-                        <h3>Savings Overview</h3>
-                        <div class="saving-stats mt-4">
-                            <div class="saving-stat-item">
-                                <p>Total Savings</p>
-                                <h2 id="total-savings-amount">₹0.00</h2>
-                            </div>
-                            <div class="saving-stat-item">
-                                <p>Savings Goal</p>
-                                <h2><input type="number" id="savings-goal-input" class="inline-edit" placeholder="Enter Goal"></h2>
-                            </div>
-                        </div>
-                        <div class="progress-container mt-4">
-                            <div class="progress-header">
-                                <span>Goal Progress</span>
-                                <span id="savings-progress-text">0%</span>
-                            </div>
-                            <div class="progress-bar-bg">
-                                <div id="savings-progress-fill" class="progress-bar-fill income"></div>
-                            </div>
+                <div class="card mb-4">
+                    <h3>Accumulated Savings</h3>
+                    <p class="text-muted">This is your total lifetime savings (All Income - All Expenses) across all months.</p>
+                    <div class="saving-stats mt-4">
+                        <div class="saving-stat-item">
+                            <p>Overall Total</p>
+                            <h2 id="total-savings-amount" class="text-credit">₹0.00</h2>
                         </div>
                     </div>
-
-                    <div class="card">
-                        <h3>Transfer Funds</h3>
-                        <p class="text-muted mb-4">Move money between your main balance and savings reserve.</p>
-                        <form id="transfer-form">
-                            <div class="form-group">
-                                <label>Direction</label>
-                                <select id="transfer-direction">
-                                    <option value="to_savings">Main Balance → Savings</option>
-                                    <option value="to_main">Savings → Main Balance</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Amount</label>
-                                <input type="number" id="transfer-amount" step="0.01" min="1" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Transfer Now</button>
-                        </form>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Monthly Cycle History</h3>
+                        <p class="text-muted" style="margin:0; font-size: 0.9rem;">Auto-calculated based on your transaction ledger.</p>
+                    </div>
+                    <div class="table-responsive mt-3">
+                        <table class="transaction-table bank-statement">
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th>Total Income</th>
+                                    <th>Total Expenses</th>
+                                    <th>Net Saved</th>
+                                </tr>
+                            </thead>
+                            <tbody id="savings-list">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
