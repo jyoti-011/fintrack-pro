@@ -40,12 +40,10 @@ const ExportService = {
         doc.text(`Net Change: ${formatCurrency(balance, curr)}`, 14, 59);
         doc.text(`Total Records: ${transactions.length}`, pageWidth - 14, 45, { align: 'right' });
 
-        // Table Data
-        // Needs to be in chronological order with running balance
-        const chronoTxns = calculateRunningBalances([...transactions]);
-
+        // Table Data (newest first). runningBalance is already calculated across the whole
+        // account, so the balance column stays correct when the export is filtered.
         const tableColumn = ["Date", "Txn ID", "Description", "Category", "Payment", "Credit", "Debit", "Balance"];
-        const tableRows = chronoTxns.map(t => [
+        const tableRows = transactions.map(t => [
             formatDateOnly(t.date),
             t.id,
             t.description,
@@ -84,13 +82,11 @@ const ExportService = {
             return;
         }
 
-        // Chronological order for CSV too
-        const chronoTxns = calculateRunningBalances([...transactions]);
         const headers = ["Date", "Txn ID", "Type", "Category", "Description", "Payment Method", "Amount", "Running Balance", "Notes"];
         
         let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\r\n";
 
-        chronoTxns.forEach(t => {
+        transactions.forEach(t => {
             const row = [
                 t.date, t.id, t.type, t.category,
                 `"${t.description.replace(/"/g, '""')}"`,

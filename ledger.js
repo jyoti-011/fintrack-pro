@@ -36,25 +36,28 @@ const Ledger = {
             let debitHtml = isDebit ? `<span class="text-debit">-${formatCurrency(t.amount, curr)}</span>` : '-';
             
             // Build Description String
-            let descStr = `<strong>${t.description}</strong>`;
-            if (accountType === 'shared' && t.member) descStr += `<br><small class="text-muted">By: ${t.member}</small>`;
-            if (t.notes) descStr += `<br><small class="text-muted">${t.notes}</small>`;
+            let descStr = `<strong>${escapeHTML(t.description)}</strong>`;
+            if (accountType === 'shared' && t.member) descStr += `<br><small class="text-muted">By: ${escapeHTML(t.member)}</small>`;
+            if (t.notes) descStr += `<br><small class="text-muted">${escapeHTML(t.notes)}</small>`;
+
+            // Future-dated entries aren't part of the current balance yet
+            const scheduled = isFuture(t.date) ? '<br><small class="text-muted"><i class="fa-regular fa-clock"></i> Scheduled</small>' : '';
 
             tr.innerHTML = `
-                <td>${formatDateTime(t.date)}</td>
-                <td><span style="font-family: monospace; color: var(--text-muted);">${t.id}<br>${t.refNo || ''}</span></td>
+                <td>${formatDateTime(t.date)}${scheduled}</td>
+                <td><span style="font-family: monospace; color: var(--text-muted);">${escapeHTML(t.id)}<br>${escapeHTML(t.refNo)}</span></td>
                 <td>
                     ${descStr}
-                    <div class="mt-2"><span class="badge ${isCredit ? 'credit' : 'debit'}">${t.category}</span></div>
-                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">Via ${t.paymentMethod}</div>
+                    <div class="mt-2"><span class="badge ${isCredit ? 'credit' : 'debit'}">${escapeHTML(t.category)}</span></div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">Via ${escapeHTML(t.paymentMethod)}</div>
                 </td>
                 <td style="font-weight: 500;">${creditHtml}</td>
                 <td style="font-weight: 500;">${debitHtml}</td>
                 <td style="font-weight: 600;">${formatCurrency(t.runningBalance, curr)}</td>
                 <td>
                     <div class="action-btns">
-                        <button class="action-btn" onclick="editTxn('${t.id}')" title="Edit"><i class="fa-solid fa-pen"></i></button>
-                        <button class="action-btn delete" onclick="deleteTxn('${t.id}')" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                        <button class="action-btn" data-action="edit-txn" data-id="${escapeHTML(t.id)}" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                        <button class="action-btn delete" data-action="delete-txn" data-id="${escapeHTML(t.id)}" title="Delete"><i class="fa-solid fa-trash"></i></button>
                     </div>
                 </td>
             `;

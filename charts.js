@@ -37,9 +37,9 @@ const Charts = {
 
         let credit = 0, debit = 0;
         transactions.forEach(t => {
-            if (isThisMonth(t.date)) {
-                if (t.type === 'credit') credit += parseFloat(t.amount);
-                else debit += parseFloat(t.amount);
+            if (isThisMonth(t.date) && !isFuture(t.date)) {
+                if (isIncome(t)) credit += parseFloat(t.amount);
+                else if (isExpense(t)) debit += parseFloat(t.amount);
             }
         });
 
@@ -68,20 +68,21 @@ const Charts = {
         if (!ctx) return;
         const colors = Charts.getColors();
 
+        // Key by YYYY-MM so the same month from a previous year isn't merged in
         const dataPoints = {};
+        const labels = [];
         const today = new Date();
         for(let i=5; i>=0; i--) {
             const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-            const key = d.toLocaleDateString('en-US', { month: 'short' });
-            dataPoints[key] = { credit: 0, debit: 0 };
+            dataPoints[monthKey(d)] = { credit: 0, debit: 0 };
+            labels.push(d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
         }
 
         transactions.forEach(t => {
-            const d = new Date(t.date);
-            const key = d.toLocaleDateString('en-US', { month: 'short' });
-            if (dataPoints[key]) {
-                if (t.type === 'credit') dataPoints[key].credit += parseFloat(t.amount);
-                else dataPoints[key].debit += parseFloat(t.amount);
+            const point = dataPoints[monthKey(t.date)];
+            if (point) {
+                if (isIncome(t)) point.credit += parseFloat(t.amount);
+                else if (isExpense(t)) point.debit += parseFloat(t.amount);
             }
         });
 
@@ -90,7 +91,7 @@ const Charts = {
         incomeExpenseChart = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: Object.keys(dataPoints),
+                labels: labels,
                 datasets: [
                     {
                         label: 'Credit',
@@ -123,20 +124,21 @@ const Charts = {
 
         const catData = {};
         transactions.forEach(t => {
-            if (t.type === 'debit') {
+            if (isExpense(t)) {
                 catData[t.category] = (catData[t.category] || 0) + parseFloat(t.amount);
             }
         });
 
         if (categoryChart) categoryChart.destroy();
 
+        const labels = Object.keys(catData);
         categoryChart = new Chart(ctx, {
             type: 'pie',
             data: {
-                labels: Object.keys(catData),
+                labels: labels,
                 datasets: [{
                     data: Object.values(catData),
-                    backgroundColor: colors.palette,
+                    backgroundColor: labels.map((_, i) => colors.palette[i % colors.palette.length]),
                     borderWidth: 1,
                     borderColor: colors.gridLines
                 }]

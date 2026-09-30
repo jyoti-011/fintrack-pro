@@ -36,6 +36,7 @@
                 <li data-target="expenses"><i class="fa-solid fa-calendar-days"></i> Expenses</li>
                 <li data-target="budget"><i class="fa-solid fa-bullseye"></i> Budget Planning</li>
                 <li data-target="savings"><i class="fa-solid fa-vault"></i> Savings</li>
+                <li data-target="goals"><i class="fa-solid fa-flag-checkered"></i> Goals</li>
                 <li data-target="analytics"><i class="fa-solid fa-chart-line"></i> Analytics</li>
                 <li data-target="settings"><i class="fa-solid fa-gear"></i> Settings</li>
             </ul>
@@ -151,10 +152,6 @@
                             </select>
                             <select id="filter-date">
                                 <option value="all">All Time</option>
-                                <option value="today">Today</option>
-                                <option value="week">This Week</option>
-                                <option value="month">This Month</option>
-                                <option value="year">This Year</option>
                             </select>
                             <button id="btn-export-pdf" class="btn btn-secondary" style="padding: 0.5rem 1rem;"><i class="fa-solid fa-file-pdf"></i> PDF</button>
                             <button id="btn-export-csv" class="btn btn-secondary" style="padding: 0.5rem 1rem;"><i class="fa-solid fa-file-csv"></i> CSV</button>
@@ -252,11 +249,11 @@
                     <div class="card budget-summary">
                         <h3>Monthly Budget Overview</h3>
                         <p>Total Allocated: <strong id="budget-allocated">₹0.00</strong></p>
-                        <p>Total Spent: <strong id="budget-spent">₹0.00</strong></p>
+                        <p>Spent in Budgeted Categories: <strong id="budget-spent">₹0.00</strong></p>
                         <p>Remaining: <strong id="budget-remaining">₹0.00</strong></p>
-                        
+
                         <div class="budget-mode-toggle mt-4">
-                            <label class="switch-label">Allocation Mode:</label>
+                            <label class="switch-label">Mode for New Budgets:</label>
                             <select id="budget-allocation-mode" class="form-select inline">
                                 <option value="manual">Manual Amount</option>
                                 <option value="percentage">Percentage based on Income</option>
@@ -312,6 +309,39 @@
                 </div>
             </section>
 
+            <!-- Goals Section -->
+            <section id="goals" class="page-section">
+                <div class="goals-hero">
+                    <div class="goals-hero-main">
+                        <p class="goals-hero-label"><i class="fa-solid fa-flag-checkered"></i> Saved towards your goals</p>
+                        <h2 id="goals-total-saved">₹0.00</h2>
+                        <p id="goals-total-sub"></p>
+                        <div class="goals-hero-bar"><div id="goals-total-bar"></div></div>
+                    </div>
+                    <div class="goals-hero-stats">
+                        <div class="goals-stat">
+                            <span>Monthly commitment</span>
+                            <strong id="goals-monthly">₹0.00</strong>
+                            <small id="goals-monthly-pct"></small>
+                        </div>
+                        <div class="goals-stat">
+                            <span>Saved this month</span>
+                            <strong id="goals-this-month">₹0.00</strong>
+                        </div>
+                        <div class="goals-stat">
+                            <span>Goals reached</span>
+                            <strong id="goals-completed">0 / 0</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="goals-toolbar">
+                    <h3>Your Goals</h3>
+                    <button class="btn btn-primary" data-action="goal-new"><i class="fa-solid fa-plus"></i> New Goal</button>
+                </div>
+                <div id="goals-grid" class="goals-grid"></div>
+            </section>
+
             <!-- Analytics Section -->
             <section id="analytics" class="page-section">
                 <div class="charts-grid">
@@ -336,7 +366,8 @@
                     <div class="card settings-card">
                         <h3>Preferences</h3>
                         <div class="form-group">
-                            <label>Default Currency</label>
+                            <label>Display Currency</label>
+                            <p class="text-muted" style="font-size: 0.8rem; margin: 0 0 0.5rem;">Changes the symbol and format only. Amounts are not converted.</p>
                             <select id="currency-select">
                                 <option value="INR">₹ INR (Indian Rupee)</option>
                                 <option value="USD">$ USD (US Dollar)</option>
@@ -413,7 +444,7 @@
                         <select id="txn-category" required></select>
                     </div>
                     <div class="form-group" id="member-group" style="display:none;">
-                        <label>Member (Who paid?)</label>
+                        <label id="txn-member-label">Member</label>
                         <select id="txn-member"></select>
                     </div>
                 </div>
@@ -490,6 +521,101 @@
         </div>
     </div>
 
+    <!-- Goal Modal -->
+    <div id="goal-modal" class="modal">
+        <div class="modal-content large-modal">
+            <div class="modal-header">
+                <h2 id="goal-modal-title">New Savings Goal</h2>
+                <button class="btn-icon" data-action="goal-close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="goal-form" class="modal-form">
+                <div class="form-group">
+                    <label for="goal-name">What are you saving for? *</label>
+                    <input type="text" id="goal-name" maxlength="40" placeholder="e.g. Goa Trip, New Laptop, Emergency Fund" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Icon</label>
+                    <div id="goal-icon-picker" class="goal-icon-picker"></div>
+                </div>
+                <div class="form-group">
+                    <label>Colour</label>
+                    <div id="goal-color-picker" class="goal-color-picker"></div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="goal-target">Target Amount *</label>
+                        <input type="number" id="goal-target" step="0.01" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="goal-date">Target Date (Optional)</label>
+                        <input type="date" id="goal-date">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="goal-monthly">Save Each Month From Salary</label>
+                        <input type="number" id="goal-monthly" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label for="goal-starting">Already Saved Elsewhere</label>
+                        <input type="number" id="goal-starting" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                </div>
+
+                <div id="goal-suggestion" class="goal-suggestion hidden"></div>
+
+                <div class="goal-autosave">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="goal-autosave">
+                        <label for="goal-autosave" style="margin:0;"><strong>Auto-save every month</strong>: move the monthly amount into this goal automatically</label>
+                    </div>
+                    <div id="goal-saveday-group" class="form-group hidden" style="margin: 0.75rem 0 0;">
+                        <label for="goal-saveday">On day of the month (e.g. salary day)</label>
+                        <input type="number" id="goal-saveday" min="1" max="28" value="1">
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-action="goal-close">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Save Goal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Goal Add Money / Withdraw Modal -->
+    <div id="goal-money-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="goal-money-title">Add Money</h2>
+                <button class="btn-icon" data-action="goal-close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="goal-money-form" class="modal-form">
+                <p id="goal-money-info" class="goal-money-info"></p>
+                <div class="form-group">
+                    <label for="goal-money-amount">Amount *</label>
+                    <input type="number" id="goal-money-amount" step="0.01" min="0.01" required>
+                    <div id="goal-money-picks" class="goal-picks"></div>
+                </div>
+                <div class="form-group">
+                    <label for="goal-money-date">Date & Time</label>
+                    <input type="datetime-local" id="goal-money-date" required>
+                </div>
+                <div class="form-group">
+                    <label for="goal-money-note">Note (Optional)</label>
+                    <input type="text" id="goal-money-note" placeholder="e.g. From September salary">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-action="goal-close">Cancel</button>
+                    <button type="submit" id="goal-money-submit" class="btn btn-primary">Add money</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -499,6 +625,7 @@
     <script src="storage.js"></script>
     <script src="ledger.js"></script>
     <script src="budget.js"></script>
+    <script src="goals.js"></script>
     <script src="charts.js"></script>
     <script src="pdf.js"></script>
     <script src="script.js"></script>

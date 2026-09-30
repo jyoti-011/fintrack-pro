@@ -69,39 +69,97 @@ const initApp = () => {
     updateTime(); // initial call
     setInterval(updateTime, 1000); // tick every second
 
+    migrateData();
     checkRecurringTransactions();
+    if (window.Goals) {
+        Goals.init();
+        Goals.runAutoSave();
+    }
     setupEventListeners();
     switchAccount('personal'); // Default
 };
 
-// --- Recurring Transactions Engine ---
-const checkRecurringTransactions = () => {
-    const today = new Date().toISOString().slice(0,10);
-    if (state.settings.lastRecurringCheck === today) return; // Already checked today
+// Keep in-memory settings in sync with storage
+const setSetting = (key, val) => {
+    state.settings[key] = val;
+    updateSetting(key, val);
+};
 
-    const accounts = ['personal', 'shared', 'company'];
+// --- Recurring Transactions Engine ---
+// Only the latest entry of a recurring series carries isRecurring = true. When the next
+// occurrence is generated the flag moves to the new entry, so each month is created exactly
+// once. Unticking "Recurring" on the latest entry stops the series.
+
+// Add months while keeping the original day where possible (31st -> 28/29th in Feb -> 31st in Mar)
+const addMonthsClamped = (dateStr, months, day) => {
+    const d = new Date(dateStr);
+    const target = new Date(d.getFullYear(), d.getMonth() + months, 1, d.getHours(), d.getMinutes(), d.getSeconds());
+    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    target.setDate(Math.min(day, lastDay));
+    return target;
+};
+
+// Older data has no recurringId, so copies of the same series are grouped by their content
+const recurringSignature = (t) => [t.type, t.category, t.description, t.amount, t.member || ''].join('|');
+
+const checkRecurringTransactions = () => {
+    const now = new Date();
     let generated = 0;
 
-    accounts.forEach(acc => {
+    ['personal', 'shared', 'company'].forEach(acc => {
         const txns = getTransactions(acc);
-        const recurring = txns.filter(t => t.isRecurring);
+        let changed = false;
 
-        recurring.forEach(rt => {
-            const lastDate = new Date(rt.date);
-            const nextDate = new Date(lastDate);
-            nextDate.setMonth(nextDate.getMonth() + 1);
+        // Find the latest entry of each series
+        const latestBySeries = {};
+        txns.filter(t => t.isRecurring).forEach(t => {
+            const key = t.recurringId || recurringSignature(t);
+            const current = latestBySeries[key];
+            if (!current || new Date(t.date) > new Date(current.date)) latestBySeries[key] = t;
+        });
+        const latestEntries = Object.values(latestBySeries);
 
-            // If a month has passed, generate new transaction
-            if (new Date() >= nextDate) {
-                const newTxn = { ...rt, id: generateID(), date: nextDate.toISOString() };
-                addTransaction(acc, newTxn);
-                generated++;
+        // Clear the flag on older copies (repairs data duplicated by the previous engine)
+        txns.forEach(t => {
+            if (t.isRecurring && !latestEntries.includes(t)) {
+                t.isRecurring = false;
+                changed = true;
             }
         });
+
+        latestEntries.forEach(latest => {
+            if (!latest.recurringId) {
+                latest.recurringId = latest.id;
+                latest.recurringDay = new Date(latest.date).getDate();
+                changed = true;
+            }
+            const day = latest.recurringDay || new Date(latest.date).getDate();
+
+            // Catch up on every missed month
+            let current = latest;
+            let next = addMonthsClamped(current.date, 1, day);
+            while (next <= now) {
+                current.isRecurring = false;
+                const { linkedId, linkedAccount, ...rest } = current;
+                current = {
+                    ...rest,
+                    id: generateID(),
+                    date: next.toISOString(),
+                    refNo: '',
+                    isRecurring: true,
+                    recurringId: latest.recurringId,
+                    recurringDay: day
+                };
+                txns.push(current);
+                generated++;
+                changed = true;
+                next = addMonthsClamped(current.date, 1, day);
+            }
+        });
+
+        if (changed) saveTransactions(acc, txns);
     });
 
-    state.settings.lastRecurringCheck = today;
-    saveSettings(state.settings);
     if(generated > 0) showToast(`${generated} recurring transaction(s) generated.`, 'info');
 };
 
@@ -119,6 +177,7 @@ const updateUI = () => {
     renderDashboard();
     renderExpensesTab();
     if(window.Budget) window.Budget.render(state.transactions, state.activeAccount, state.settings);
+    if(window.Goals && state.activeAccount === 'personal') window.Goals.render(state.transactions, state.settings);
     if(window.Charts && document.getElementById('analytics').classList.contains('active')) {
         window.Charts.render(state.transactions);
     }
@@ -139,9 +198,10 @@ const switchAccount = (account) => {
     const isPersonal = account === 'personal';
     document.querySelector('li[data-target="budget"]').style.display = isPersonal ? 'flex' : 'none';
     document.querySelector('li[data-target="savings"]').style.display = isPersonal ? 'flex' : 'none';
+    document.querySelector('li[data-target="goals"]').style.display = isPersonal ? 'flex' : 'none';
 
     // If on a hidden tab, redirect to dashboard
-    if (!isPersonal && ['budget', 'savings'].includes(document.querySelector('.nav-links li.active').dataset.target)) {
+    if (!isPersonal && ['budget', 'savings', 'goals'].includes(document.querySelector('.nav-links li.active').dataset.target)) {
         document.querySelector('li[data-target="dashboard"]').click();
     }
 
@@ -153,32 +213,32 @@ const getMonthlyHistory = (transactions) => {
     const history = {};
     transactions.forEach(t => {
         if (!t.date) return;
-        const monthKey = t.date.slice(0, 7); // YYYY-MM
-        if (!history[monthKey]) history[monthKey] = { income: 0, expense: 0 };
-        if (t.type === 'credit') history[monthKey].income += parseFloat(t.amount);
-        else if (t.type === 'debit') history[monthKey].expense += parseFloat(t.amount);
+        const key = monthKey(t.date);
+        if (!history[key]) history[key] = { income: 0, expense: 0 };
+        if (isIncome(t)) history[key].income = roundMoney(history[key].income + parseFloat(t.amount));
+        else if (isExpense(t)) history[key].expense = roundMoney(history[key].expense + parseFloat(t.amount));
     });
-    
+
     return Object.keys(history).map(key => ({
         month: key,
         income: history[key].income,
         expense: history[key].expense,
-        saved: history[key].income - history[key].expense
+        saved: roundMoney(history[key].income - history[key].expense)
     })).sort((a, b) => b.month.localeCompare(a.month));
 };
 
 const renderDashboard = () => {
-    const totals = getAccountTotals(state.activeAccount);
     const curr = state.settings.currency;
+    const pastTxns = state.transactions.filter(t => !isFuture(t.date));
 
-    DOM.dashBalance.textContent = formatCurrency(totals.balance, curr);
+    DOM.dashBalance.textContent = formatCurrency(getCurrentBalance(state.transactions), curr);
 
     // Calculate monthly credit/debit
     let mCredit = 0, mDebit = 0;
-    state.transactions.forEach(t => {
+    pastTxns.forEach(t => {
         if(isThisMonth(t.date)) {
-            if(t.type === 'credit') mCredit += parseFloat(t.amount);
-            else mDebit += parseFloat(t.amount);
+            if(isIncome(t)) mCredit += parseFloat(t.amount);
+            else if(isExpense(t)) mDebit += parseFloat(t.amount);
         }
     });
 
@@ -187,7 +247,7 @@ const renderDashboard = () => {
 
     // Savings logic (only for personal)
     if (state.activeAccount === 'personal') {
-        const history = getMonthlyHistory(state.transactions);
+        const history = getMonthlyHistory(pastTxns);
         const totalSav = history.reduce((acc, currItem) => acc + currItem.saved, 0);
         DOM.dashSavings.textContent = formatCurrency(totalSav, curr);
         renderSavingsView(history);
@@ -204,17 +264,17 @@ const renderDashboard = () => {
 
     // Recent Activity
     DOM.recentTxnList.innerHTML = '';
-    const recent = state.transactions.slice(0, 5);
-    
+    const recent = pastTxns.slice(0, 5);
+
     if(recent.length === 0) {
         DOM.recentTxnList.innerHTML = '<div style="padding: 2rem; text-align: center; color: var(--text-muted);">No recent activity.</div>';
     } else {
         recent.forEach(t => {
             const isCredit = t.type === 'credit';
             const colorClass = isCredit ? 'text-credit' : 'text-debit';
-            
-            let descStr = `<h4>${t.description}</h4>`;
-            if (state.activeAccount === 'shared' && t.member) descStr += `<p style="font-size: 0.7rem;">By: ${t.member}</p>`;
+
+            let descStr = `<h4>${escapeHTML(t.description)}</h4>`;
+            if (state.activeAccount === 'shared' && t.member) descStr += `<p style="font-size: 0.7rem;">By: ${escapeHTML(t.member)}</p>`;
 
             const div = document.createElement('div');
             div.className = 'txn-item';
@@ -223,7 +283,7 @@ const renderDashboard = () => {
                     <div class="txn-icon ${isCredit ? 'credit-icon' : 'debit-icon'}"><i class="fa-solid ${isCredit ? 'fa-arrow-turn-down' : 'fa-arrow-turn-up'}"></i></div>
                     <div class="txn-details">
                         ${descStr}
-                        <p>${formatDateOnly(t.date)} • ${t.category}</p>
+                        <p>${formatDateOnly(t.date)} • ${escapeHTML(t.category)}</p>
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 15px;">
@@ -231,8 +291,8 @@ const renderDashboard = () => {
                         ${isCredit ? '+' : '-'}${formatCurrency(t.amount, curr)}
                     </div>
                     <div class="action-btns" style="display: flex; gap: 8px;">
-                        <button onclick="editTxn('${t.id}')" title="Edit" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px;"><i class="fa-solid fa-pen"></i></button>
-                        <button onclick="deleteTxn('${t.id}')" title="Delete" style="background: none; border: none; cursor: pointer; color: var(--debit, #ef4444); padding: 4px;"><i class="fa-solid fa-trash"></i></button>
+                        <button data-action="edit-txn" data-id="${escapeHTML(t.id)}" title="Edit" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px;"><i class="fa-solid fa-pen"></i></button>
+                        <button data-action="delete-txn" data-id="${escapeHTML(t.id)}" title="Delete" style="background: none; border: none; cursor: pointer; color: var(--debit, #ef4444); padding: 4px;"><i class="fa-solid fa-trash"></i></button>
                     </div>
                 </div>
             `;
@@ -243,25 +303,36 @@ const renderDashboard = () => {
     if(window.Charts) window.Charts.renderQuickCashFlow(state.transactions);
 };
 
+// Pool model: members deposit into the shared wallet and expenses are paid from it.
+// Each member's net = what they deposited - their equal share of all expenses.
 const renderSharedStatus = () => {
-    const members = getSharedMembers();
-    if(members.length === 0) return;
+    const current = getSharedMembers();
+    const pastTxns = state.transactions.filter(t => !isFuture(t.date));
+
+    // Members removed from Settings stay in the settlement if they have history,
+    // so removing someone doesn't rewrite everyone's past shares
+    const former = [...new Set(pastTxns.map(t => t.member).filter(m => m && !current.includes(m)))];
+    const members = [...current, ...former];
+    if(members.length === 0) {
+        DOM.sharedStatus.classList.add('hidden');
+        return;
+    }
 
     let memberContributions = {};
     members.forEach(m => memberContributions[m] = 0);
     let totalExpenses = 0;
 
-    state.transactions.forEach(t => {
+    pastTxns.forEach(t => {
         if(t.type === 'credit' && t.member && memberContributions[t.member] !== undefined) {
-            memberContributions[t.member] += parseFloat(t.amount);
+            memberContributions[t.member] = roundMoney(memberContributions[t.member] + parseFloat(t.amount));
         }
         if(t.type === 'debit') {
-            totalExpenses += parseFloat(t.amount);
+            totalExpenses = roundMoney(totalExpenses + parseFloat(t.amount));
         }
     });
 
     const curr = state.settings.currency;
-    const equalShare = members.length > 0 ? totalExpenses / members.length : 0;
+    const equalShare = totalExpenses / members.length;
 
     let html = `<div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px; font-size: 0.9rem;">
         <strong>Shared Expenses Pool</strong>
@@ -271,8 +342,9 @@ const renderSharedStatus = () => {
     for(const [m, amt] of Object.entries(memberContributions)) {
         const net = amt - equalShare;
         const color = net >= 0 ? 'var(--credit)' : 'var(--debit)';
+        const label = former.includes(m) ? `${escapeHTML(m)} <span class="text-muted">(former)</span>` : escapeHTML(m);
         html += `<div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.9rem;">
-            <span><strong>${m}</strong> (Contributed: ${formatCurrency(amt, curr)})</span>
+            <span><strong>${label}</strong> (Contributed: ${formatCurrency(amt, curr)})</span>
             <span style="color: ${color}; font-weight: 500;">Net Balance: ${formatCurrency(net, curr)}</span>
         </div>`;
     }
@@ -321,15 +393,14 @@ const renderExpensesTab = () => {
     // 1. Determine unique months
     const uniqueMonths = new Set();
     state.transactions.forEach(t => {
-        if(t.date) uniqueMonths.add(t.date.slice(0, 7)); // YYYY-MM
+        if(t.date) uniqueMonths.add(monthKey(t.date));
     });
-    
+
     let monthsArr = Array.from(uniqueMonths).sort((a, b) => b.localeCompare(a));
-    
+
     // Fallback if empty
     if(monthsArr.length === 0) {
-        const todayStr = new Date().toISOString().slice(0, 7);
-        monthsArr.push(todayStr);
+        monthsArr.push(monthKey(new Date()));
     }
     
     // Retain selection or pick latest
@@ -348,21 +419,24 @@ const renderExpensesTab = () => {
     }
     
     // 2. Filter txns for this month
-    let monthTxns = state.transactions.filter(t => t.date && t.date.slice(0, 7) === state.expenseTabSelectedMonth);
-    
+    let monthTxns = state.transactions.filter(t => t.date && monthKey(t.date) === state.expenseTabSelectedMonth);
+
     // We only want to show debits in the list as requested
-    let expensesOnly = monthTxns.filter(t => t.type === 'debit');
-    
+    let expensesOnly = monthTxns.filter(isExpense);
+
     // Calculate totals for cards (Income, Expense, Saved)
     let mIncome = 0;
     let mExpense = 0;
     monthTxns.forEach(t => {
-        if(t.type === 'credit') mIncome += parseFloat(t.amount);
-        if(t.type === 'debit') mExpense += parseFloat(t.amount);
+        if(isIncome(t)) mIncome = roundMoney(mIncome + parseFloat(t.amount));
+        if(isExpense(t)) mExpense = roundMoney(mExpense + parseFloat(t.amount));
     });
-    let mSaved = mIncome - mExpense;
-    
-    if (DOM.expBalance) DOM.expBalance.textContent = formatCurrency(mSaved, curr);
+    let mSaved = roundMoney(mIncome - mExpense);
+
+    // Transactions are newest first, so the first one holds the month's closing balance
+    const endBalance = monthTxns.length > 0 ? monthTxns[0].runningBalance : 0;
+
+    if (DOM.expBalance) DOM.expBalance.textContent = formatCurrency(endBalance, curr);
     if (DOM.expIncome) DOM.expIncome.textContent = formatCurrency(mIncome, curr);
     if (DOM.expExpense) DOM.expExpense.textContent = formatCurrency(mExpense, curr);
     if (DOM.expSaved) DOM.expSaved.textContent = formatCurrency(mSaved, curr);
@@ -389,8 +463,8 @@ const renderExpensesTab = () => {
                         <div style="font-size: 0.75rem; color: var(--text-muted);">${formatTimeOnly(t.date)}</div>
                     </td>
                     <td>
-                        <div style="font-weight: 500;">${t.description}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">${t.category} ${t.member ? '• ' + t.member : ''}</div>
+                        <div style="font-weight: 500;">${escapeHTML(t.description)}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHTML(t.category)} ${t.member ? '• ' + escapeHTML(t.member) : ''}</div>
                     </td>
                     <td class="text-debit">
                         -${formatCurrency(t.amount, curr)}
@@ -410,7 +484,7 @@ const applyFilters = () => {
     // Dynamically build month options based on actual transactions
     const uniqueMonths = new Set();
     state.transactions.forEach(t => {
-        if(t.date) uniqueMonths.add(t.date.slice(0, 7)); // Extract YYYY-MM
+        if(t.date) uniqueMonths.add(monthKey(t.date));
     });
     const sortedMonths = Array.from(uniqueMonths).sort().reverse();
     
@@ -444,7 +518,7 @@ const applyFilters = () => {
     if (typeF !== 'all') filtered = filtered.filter(t => t.type === typeF);
     
     if (dateF !== 'all') {
-        filtered = filtered.filter(t => t.date.startsWith(dateF));
+        filtered = filtered.filter(t => monthKey(t.date) === dateF);
     }
 
     state.filteredTransactions = filtered;
@@ -477,8 +551,7 @@ const setupEventListeners = () => {
     // Theme Toggle
     DOM.themeToggle.addEventListener('click', () => {
         const newTheme = state.settings.theme === 'light' ? 'dark' : 'light';
-        state.settings.theme = newTheme;
-        updateSetting('theme', newTheme);
+        setSetting('theme', newTheme);
         applyTheme(newTheme);
         updateUI();
     });
@@ -491,7 +564,11 @@ const setupEventListeners = () => {
     DOM.typeCredit.addEventListener('change', populateCategories);
     DOM.typeDebit.addEventListener('change', populateCategories);
     DOM.txnForm.addEventListener('submit', handleTxnSubmit);
-    document.getElementById('btn-reset-form').addEventListener('click', () => DOM.txnForm.reset());
+    document.getElementById('btn-reset-form').addEventListener('click', () => {
+        DOM.txnForm.reset();
+        // reset() flips the type back to Debit without firing change, so refresh the category list
+        populateCategories();
+    });
 
     // Filter Listeners
     DOM.searchInput.addEventListener('input', () => { if(window.Ledger) Ledger.currentPage = 1; updateUI(); });
@@ -500,6 +577,18 @@ const setupEventListeners = () => {
     DOM.expMonthSelect.addEventListener('change', (e) => {
         state.expenseTabSelectedMonth = e.target.value;
         renderExpensesTab();
+    });
+
+    // Row action buttons (edit/delete transaction, remove member/budget). Values come from
+    // data attributes instead of inline onclick strings, so names with quotes can't break them.
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const { action, id } = btn.dataset;
+        if (action === 'edit-txn') editTxn(id);
+        else if (action === 'delete-txn') deleteTxn(id);
+        else if (action === 'remove-member') window.removeMember(id);
+        else if (action === 'remove-budget' && window.removeBudget) window.removeBudget(id);
     });
 
     // Export Listeners
@@ -522,7 +611,11 @@ const openTxnModal = (txn = null) => {
     if (state.activeAccount === 'shared') {
         DOM.memberGroup.style.display = 'block';
         const members = getSharedMembers();
-        DOM.txnMember.innerHTML = members.map(m => `<option value="${m}">${m}</option>`).join('');
+        DOM.txnMember.innerHTML = members.map(m => `<option value="${escapeHTML(m)}">${escapeHTML(m)}</option>`).join('');
+        // Editing an entry by a removed member: keep them selectable so the edit doesn't reassign it
+        if (txn && txn.member && !members.includes(txn.member)) {
+            DOM.txnMember.add(new Option(`${txn.member} (former)`, txn.member));
+        }
     } else {
         DOM.memberGroup.style.display = 'none';
     }
@@ -543,6 +636,10 @@ const openTxnModal = (txn = null) => {
         else DOM.typeDebit.checked = true;
         
         populateCategories();
+        // Keep categories that aren't in the picker (e.g. transfers, older data) instead of silently replacing them
+        if (![...DOM.txnCategory.options].some(o => o.value === txn.category)) {
+            DOM.txnCategory.add(new Option(txn.category, txn.category));
+        }
         DOM.txnCategory.value = txn.category;
         if(state.activeAccount === 'shared') DOM.txnMember.value = txn.member;
     } else {
@@ -563,6 +660,10 @@ const populateCategories = () => {
     const list = CATEGORIES[state.activeAccount][isCredit ? 'credit' : 'debit'];
     DOM.txnCategory.innerHTML = list.map(c => `<option value="${c}">${c}</option>`).join('');
     
+    // Shared wallet: deposits come from a member, expenses are paid out of the pool
+    const memberLabel = document.getElementById('txn-member-label');
+    if (memberLabel) memberLabel.textContent = isCredit ? 'Deposited by' : 'Paid from pool by';
+
     const deductGroup = document.getElementById('deduct-personal-group');
     if (deductGroup) {
         if (state.activeAccount === 'shared' && isCredit) {
@@ -581,7 +682,7 @@ const handleTxnSubmit = (e) => {
     const txnData = {
         id: id || generateID(),
         type: isCredit ? 'credit' : 'debit',
-        amount: parseFloat(document.getElementById('txn-amount').value),
+        amount: roundMoney(document.getElementById('txn-amount').value),
         date: new Date(document.getElementById('txn-date').value).toISOString(),
         category: DOM.txnCategory.value,
         description: document.getElementById('txn-description').value.trim(),
@@ -593,7 +694,7 @@ const handleTxnSubmit = (e) => {
 
     if (state.activeAccount === 'shared') {
         txnData.member = DOM.txnMember.value;
-        
+
         const deductPersonal = document.getElementById('txn-deduct-personal');
         if (!id && isCredit && deductPersonal && deductPersonal.checked) {
             const personalTxn = {
@@ -601,18 +702,24 @@ const handleTxnSubmit = (e) => {
                 type: 'debit',
                 amount: txnData.amount,
                 date: txnData.date,
-                category: 'Savings Transfer', 
+                category: TRANSFER_CATEGORY,
                 description: `Shared Wallet Deposit (${txnData.member})`,
                 paymentMethod: txnData.paymentMethod,
                 refNo: txnData.refNo,
                 notes: 'Auto-deducted for shared wallet deposit.',
-                isRecurring: false
+                isRecurring: false,
+                isTransfer: true,
+                linkedId: txnData.id,
+                linkedAccount: 'shared'
             };
             addTransaction('personal', personalTxn);
+            txnData.linkedId = personalTxn.id;
+            txnData.linkedAccount = 'personal';
         }
     }
 
     if (id) {
+        syncLinkedTransaction(state.transactions.find(t => t.id === id), txnData);
         updateTransaction(state.activeAccount, id, txnData);
         showToast('Transaction updated');
     } else {
@@ -624,13 +731,38 @@ const handleTxnSubmit = (e) => {
     updateUI();
 };
 
-window.editTxn = (id) => {
+const editTxn = (id) => {
     const txn = state.transactions.find(t => t.id === id);
     if(txn) openTxnModal(txn);
 };
 
-window.deleteTxn = (id) => {
-    if(confirm('Delete this transaction?')) {
+// Keep the other half of a shared wallet deposit in step when one side is edited
+const syncLinkedTransaction = (original, updated) => {
+    if (!original || !original.linkedId) return;
+    const { linkedId, linkedAccount } = original;
+
+    // A deposit changed into an expense no longer moves money out of the personal wallet
+    if (original.type === 'credit' && updated.type !== 'credit') {
+        deleteTransaction(linkedAccount, linkedId);
+        updated.linkedId = null;
+        updated.linkedAccount = null;
+        return;
+    }
+
+    const changes = { amount: updated.amount, date: updated.date };
+    if (linkedAccount === 'personal') changes.description = `Shared Wallet Deposit (${updated.member})`;
+    updateTransaction(linkedAccount, linkedId, changes);
+};
+
+const deleteTxn = (id) => {
+    const txn = state.transactions.find(t => t.id === id);
+    const linkedMsg = txn && txn.linkedId
+        ? (txn.linkedAccount === 'personal'
+            ? '\nThe matching deduction in your Personal account will also be removed.'
+            : '\nThe matching deposit in the Shared account will also be removed.')
+        : '';
+    if(confirm('Delete this transaction?' + linkedMsg)) {
+        if (txn && txn.linkedId) deleteTransaction(txn.linkedAccount, txn.linkedId);
         deleteTransaction(state.activeAccount, id);
         showToast('Transaction deleted', 'warning');
         updateUI();
@@ -644,21 +776,21 @@ const setupSettingsListeners = () => {
     document.getElementById('budget-allocation-mode').value = state.settings.budgetMode;
 
     document.getElementById('btn-save-settings').addEventListener('click', () => {
-        updateSetting('currency', document.getElementById('currency-select').value);
+        setSetting('currency', document.getElementById('currency-select').value);
         showToast('Preferences saved');
         updateUI();
     });
 
     document.getElementById('budget-allocation-mode').addEventListener('change', (e) => {
-        updateSetting('budgetMode', e.target.value);
+        setSetting('budgetMode', e.target.value);
         updateUI();
     });
 
     // Shared Members
     const renderMembers = () => {
         const mems = getSharedMembers();
-        document.getElementById('shared-members-list').innerHTML = mems.map(m => 
-            `<span class="badge" style="background:var(--border-color); color:var(--text-primary); margin-right:5px; padding: 5px 10px;">${m} <i class="fa-solid fa-times" style="cursor:pointer;" onclick="removeMember('${m}')"></i></span>`
+        document.getElementById('shared-members-list').innerHTML = mems.map(m =>
+            `<span class="badge" style="background:var(--border-color); color:var(--text-primary); margin-right:5px; padding: 5px 10px;">${escapeHTML(m)} <i class="fa-solid fa-times" style="cursor:pointer;" data-action="remove-member" data-id="${escapeHTML(m)}"></i></span>`
         ).join('');
     };
     renderMembers();
@@ -679,10 +811,10 @@ const setupSettingsListeners = () => {
     });
 
     window.removeMember = (m) => {
-        let mems = getSharedMembers();
-        mems = mems.filter(x => x !== m);
-        saveSharedMembers(mems);
+        if (!confirm(`Remove ${m} from the shared account?\nTheir past transactions stay in the settlement as a former member.`)) return;
+        saveSharedMembers(getSharedMembers().filter(x => x !== m));
         renderMembers();
+        updateUI();
     };
 
     // Automated Savings - No manual form required
@@ -700,9 +832,21 @@ const setupSettingsListeners = () => {
     document.getElementById('budget-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const cat = document.getElementById('budget-category').value;
-        const amt = parseFloat(document.getElementById('budget-amount').value);
+        const amt = roundMoney(document.getElementById('budget-amount').value);
+        const mode = state.settings.budgetMode || 'manual';
         const b = getBudgets();
-        b[cat] = amt;
+
+        if (mode === 'percentage') {
+            const otherPct = Object.entries(b)
+                .filter(([c, x]) => c !== cat && x.mode === 'percentage')
+                .reduce((sum, [, x]) => sum + x.value, 0);
+            if (otherPct + amt > 100) {
+                showToast(`Percentages would total ${roundMoney(otherPct + amt)}%. Only ${roundMoney(100 - otherPct)}% is left.`, 'error');
+                return;
+            }
+        }
+
+        b[cat] = { mode, value: amt };
         saveBudgets(b);
         DOM.budgetModal.classList.remove('show');
         showToast('Budget configured');
@@ -717,11 +861,13 @@ const setupSettingsListeners = () => {
         if(!file) return;
         const reader = new FileReader();
         reader.onload = (event) => {
-            if(importAllData(event.target.result)) {
+            const error = importAllData(event.target.result);
+            e.target.value = ''; // allow choosing the same file again after fixing it
+            if(!error) {
                 showToast('Data restored successfully!');
                 setTimeout(() => window.location.reload(), 1000);
             } else {
-                showToast('Invalid backup file', 'error');
+                showToast(`Backup not restored: ${error}`, 'error');
             }
         };
         reader.readAsText(file);
