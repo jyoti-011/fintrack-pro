@@ -89,6 +89,7 @@
                         <div class="card-info">
                             <p>Available Balance</p>
                             <h2 id="dash-balance">₹0.00</h2>
+                            <small id="dash-balance-sub" class="card-sub"></small>
                         </div>
                     </div>
                     <div class="card summary-card income">
@@ -108,8 +109,9 @@
                     <div class="card summary-card savings">
                         <div class="card-icon"><i class="fa-solid fa-piggy-bank"></i></div>
                         <div class="card-info">
-                            <p>Savings / Reserve</p>
+                            <p>Savings (Left Over)</p>
                             <h2 id="dash-savings">₹0.00</h2>
+                            <small id="dash-savings-sub" class="card-sub"></small>
                         </div>
                     </div>
                 </div>
@@ -195,7 +197,7 @@
                     <div class="card summary-card balance">
                         <div class="card-icon"><i class="fa-solid fa-wallet"></i></div>
                         <div class="card-info">
-                            <p>Available Balance (End of Month)</p>
+                            <p>Account Balance (End of Month)</p>
                             <h2 id="exp-balance">₹0.00</h2>
                         </div>
                     </div>
@@ -277,11 +279,12 @@
             <section id="savings" class="page-section">
                 <div class="card mb-4">
                     <h3>Accumulated Savings</h3>
-                    <p class="text-muted">This is your total lifetime savings (All Income - All Expenses) across all months.</p>
+                    <p id="savings-intro" class="text-muted"></p>
                     <div class="saving-stats mt-4">
                         <div class="saving-stat-item">
                             <p>Overall Total</p>
                             <h2 id="total-savings-amount" class="text-credit">₹0.00</h2>
+                            <small id="savings-breakdown" class="card-sub"></small>
                         </div>
                     </div>
                 </div>
@@ -289,16 +292,17 @@
                 <div class="card">
                     <div class="card-header">
                         <h3>Monthly Cycle History</h3>
-                        <p class="text-muted" style="margin:0; font-size: 0.9rem;">Auto-calculated based on your transaction ledger.</p>
+                        <p class="text-muted" style="margin:0; font-size: 0.9rem;">Each salary starts a new month.</p>
                     </div>
                     <div class="table-responsive mt-3">
                         <table class="transaction-table bank-statement">
                             <thead>
                                 <tr>
-                                    <th>Month</th>
-                                    <th>Total Income</th>
-                                    <th>Total Expenses</th>
-                                    <th>Net Saved</th>
+                                    <th>Month (Salary Cycle)</th>
+                                    <th>Income</th>
+                                    <th>Expenses</th>
+                                    <th>Goals &amp; Transfers</th>
+                                    <th>Left Over (Saved)</th>
                                 </tr>
                             </thead>
                             <tbody id="savings-list">

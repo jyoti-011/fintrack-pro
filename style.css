@@ -301,7 +301,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); box-sh
 .expense .card-icon { background: var(--debit-bg); color: var(--debit); }
 .savings .card-icon { background: var(--warning-bg); color: var(--warning); }
 .card-info p { font-size: 0.8rem; margin-bottom: 0.2rem; }
-.card-info h2 { font-size: 1.5rem; letter-spacing: -0.025em; }
+.card-info h2 { font-size: 1.5rem; letter-spacing: -0.025em; white-space: nowrap; }
+.card-sub { display: block; margin-top: 0.2rem; font-size: 0.72rem; color: var(--text-muted); }
+.nowrap { white-space: nowrap; }
+#savings-breakdown { font-size: 0.85rem; margin-top: 0.4rem; }
 
 .dashboard-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
 .transaction-list { display: flex; flex-direction: column; gap: 0.75rem; }

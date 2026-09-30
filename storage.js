@@ -45,7 +45,8 @@ const updateSetting = (key, val) => {
 // Account type can be: 'personal', 'shared', 'company'
 const getTransactions = (accountType) => {
     const key = STORAGE_KEYS[accountType.toUpperCase()];
-    return getItem(key, []);
+    // Balances depend on newest-first order; sort on read too in case stored data isn't
+    return getItem(key, []).sort((a, b) => new Date(b.date) - new Date(a.date));
 };
 
 const saveTransactions = (accountType, transactions) => {
@@ -110,6 +111,97 @@ const calculateRunningBalances = (transactions) => {
 const getCurrentBalance = (transactions) => {
     const latestPast = transactions.find(t => !isFuture(t.date));
     return latestPast ? latestPast.runningBalance : 0;
+};
+
+// --- Salary Cycles ---
+// On the Personal account each Salary entry starts a new "month": Available Balance restarts
+// from that salary, and whatever was left before it counts as Savings.
+// A Salary entry less than CYCLE_MIN_GAP_DAYS after the current cycle started (split salary,
+// arrears) joins that cycle instead of starting a new one.
+const SALARY_CATEGORY = 'Salary';
+const CYCLE_MIN_GAP_DAYS = 15;
+
+const getSalaryCycleStarts = (transactions) => {
+    const salaryDates = transactions
+        .filter(t => t.type === 'credit' && t.category === SALARY_CATEGORY && !isFuture(t.date))
+        .map(t => new Date(t.date))
+        .sort((a, b) => a - b);
+
+    const starts = [];
+    salaryDates.forEach(d => {
+        const last = starts[starts.length - 1];
+        if (!last || d - last >= CYCLE_MIN_GAP_DAYS * 86400000) starts.push(d);
+    });
+    return starts;
+};
+
+// The period that "this month" figures cover: the current salary cycle on Personal,
+// otherwise (other accounts, or no salary recorded yet) the calendar month
+const getCurrentPeriod = (transactions, accountType) => {
+    if (accountType === 'personal') {
+        const starts = getSalaryCycleStarts(transactions);
+        if (starts.length) return { start: starts[starts.length - 1], isSalaryCycle: true };
+    }
+    const now = new Date();
+    return { start: new Date(now.getFullYear(), now.getMonth(), 1), isSalaryCycle: false };
+};
+
+const isInPeriod = (t, period) => new Date(t.date) >= period.start && !isFuture(t.date);
+
+// Splits the current balance into this cycle's money and the leftover carried into Savings.
+// Expects newest-first transactions with running balances.
+const getCycleBalances = (transactions, period) => {
+    const current = getCurrentBalance(transactions);
+    if (!period.isSalaryCycle) return { available: current, carriedOver: 0 };
+    const lastBefore = transactions.find(t => new Date(t.date) < period.start);
+    const carriedOver = lastBefore ? lastBefore.runningBalance : 0;
+    return { available: roundMoney(current - carriedOver), carriedOver };
+};
+
+// History rows (newest first): one per salary cycle, or per calendar month if no salary is recorded.
+// leftover = net change in the balance over the period (money that stayed, i.e. went to Savings);
+// transfers = money moved to goals / the shared wallet (negative) or back (positive).
+const getPeriodHistory = (transactions) => {
+    const past = transactions.filter(t => !isFuture(t.date));
+    const starts = getSalaryCycleStarts(past);
+    const byCycle = starts.length > 0;
+    const periods = {};
+
+    past.forEach(t => {
+        const d = new Date(t.date);
+        let key;
+        if (byCycle) {
+            const idx = starts.findLastIndex(s => s <= d);
+            key = idx === -1 ? 'before' : String(idx);
+        } else {
+            key = monthKey(t.date);
+        }
+        const p = periods[key] || (periods[key] = { key, income: 0, expense: 0, net: 0 });
+        const amt = parseFloat(t.amount);
+        if (isIncome(t)) p.income = roundMoney(p.income + amt);
+        if (isExpense(t)) p.expense = roundMoney(p.expense + amt);
+        p.net = roundMoney(p.net + (t.type === 'credit' ? amt : -amt));
+    });
+
+    return Object.values(periods).map(p => {
+        let start = null, end = null;
+        if (byCycle && p.key !== 'before') {
+            const i = Number(p.key);
+            start = starts[i];
+            end = starts[i + 1] || null; // null = current, still-running cycle
+        }
+        return {
+            ...p,
+            byCycle,
+            start,
+            end,
+            isCurrent: byCycle ? p.key === String(starts.length - 1) : p.key === monthKey(new Date()),
+            transfers: roundMoney(p.net - (p.income - p.expense)),
+            leftover: p.net
+        };
+    }).sort((a, b) => byCycle
+        ? (b.key === 'before' ? -1 : a.key === 'before' ? 1 : Number(b.key) - Number(a.key))
+        : b.key.localeCompare(a.key));
 };
 
 // --- Shared Members ---

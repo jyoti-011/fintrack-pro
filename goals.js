@@ -52,11 +52,17 @@ const Goals = {
         return roundMoney(saved);
     },
 
-    // Net amount moved into the goal this month
-    getSavedThisMonth: (goalId, txns) => roundMoney(txns.reduce((sum, t) => {
-        if (t.goalId !== goalId || !isThisMonth(t.date) || isFuture(t.date)) return sum;
+    // Net amount moved into the goal during the current salary cycle
+    getSavedThisMonth: (goalId, txns, period) => roundMoney(txns.reduce((sum, t) => {
+        if (t.goalId !== goalId || !isInPeriod(t, period)) return sum;
         return sum + (t.type === 'debit' ? 1 : -1) * parseFloat(t.amount);
     }, 0)),
+
+    // This salary cycle's available balance (money left from the latest salary)
+    getAvailable: () => {
+        const personal = calculateRunningBalances(getTransactions('personal'));
+        return getCycleBalances(personal, getCurrentPeriod(personal, 'personal')).available;
+    },
 
     // Where the goal stands: reached, on track, behind, overdue, or an ETA from the monthly plan
     getStatus: (goal, saved, curr) => {
@@ -129,6 +135,7 @@ const Goals = {
         if (!grid) return;
         const curr = settings.currency;
         const goals = getGoals();
+        const period = getCurrentPeriod(transactions, 'personal');
 
         // Summary banner
         let totalSaved = 0, totalTarget = 0, monthly = 0, thisMonth = 0, completed = 0;
@@ -138,12 +145,12 @@ const Goals = {
             totalSaved += Math.min(saved, goal.target);
             totalTarget += parseFloat(goal.target);
             if (!done) monthly += parseFloat(goal.monthlyAmount) || 0;
-            thisMonth += Goals.getSavedThisMonth(goal.id, transactions);
+            thisMonth += Goals.getSavedThisMonth(goal.id, transactions, period);
             if (done) completed++;
             return { goal, saved };
         });
 
-        const income = transactions.filter(t => isIncome(t) && isThisMonth(t.date) && !isFuture(t.date))
+        const income = transactions.filter(t => isIncome(t) && isInPeriod(t, period))
             .reduce((s, t) => s + parseFloat(t.amount), 0);
         const overallPct = totalTarget > 0 ? Math.min(100, (totalSaved / totalTarget) * 100) : 0;
 
@@ -177,10 +184,10 @@ const Goals = {
             return (a.goal.targetDate || '9999').localeCompare(b.goal.targetDate || '9999');
         });
 
-        grid.innerHTML = rows.map(({ goal, saved }) => Goals.cardHTML(goal, saved, transactions, curr)).join('');
+        grid.innerHTML = rows.map(({ goal, saved }) => Goals.cardHTML(goal, saved, transactions, curr, period)).join('');
     },
 
-    cardHTML: (goal, saved, transactions, curr) => {
+    cardHTML: (goal, saved, transactions, curr, period) => {
         const color = GOAL_COLORS.includes(goal.color) ? goal.color : GOAL_COLORS[0];
         const icon = GOAL_ICONS.includes(goal.icon) ? goal.icon : 'fa-piggy-bank';
         const pct = Math.min(100, Math.max(0, (saved / goal.target) * 100));
@@ -188,7 +195,7 @@ const Goals = {
         const status = Goals.getStatus(goal, saved, curr);
         const done = status.kind === 'complete';
         const monthly = parseFloat(goal.monthlyAmount) || 0;
-        const thisMonth = Goals.getSavedThisMonth(goal.id, transactions);
+        const thisMonth = Goals.getSavedThisMonth(goal.id, transactions, period);
         const id = escapeHTML(goal.id);
 
         const deadline = goal.targetDate
@@ -372,7 +379,7 @@ const Goals = {
             ? '<i class="fa-solid fa-plus"></i> Add money'
             : '<i class="fa-solid fa-arrow-right-from-bracket"></i> Withdraw';
         document.getElementById('goal-money-info').innerHTML = mode === 'add'
-            ? `Available balance: <strong>${formatCurrency(getCurrentBalance(personal), curr)}</strong> · ${formatCurrency(remaining, curr)} left to reach this goal`
+            ? `Available balance: <strong>${formatCurrency(Goals.getAvailable(), curr)}</strong> · ${formatCurrency(remaining, curr)} left to reach this goal`
             : `In this goal: <strong>${formatCurrency(saved, curr)}</strong>. Withdrawn money goes back to your available balance.`;
 
         // Quick-pick amounts
@@ -402,8 +409,8 @@ const Goals = {
 
         const personal = calculateRunningBalances(getTransactions('personal'));
         if (Goals.moneyMode === 'add') {
-            const available = getCurrentBalance(personal);
-            if (amount > available && !confirm(`This is more than your available balance (${formatCurrency(available, curr)}). Add it anyway?`)) return;
+            const available = Goals.getAvailable();
+            if (amount > available && !confirm(`This is more than this month's available balance (${formatCurrency(available, curr)}). Add it anyway? The extra will come out of your savings.`)) return;
         } else {
             const saved = Goals.getSaved(goal, personal);
             if (amount > saved) return showToast(`You can withdraw at most ${formatCurrency(saved, curr)}.`, 'error');

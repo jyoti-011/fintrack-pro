@@ -21,14 +21,15 @@ const Budget = {
             return;
         }
 
-        // Calculate this month's income and expenses (scheduled future entries excluded)
+        // Income and expenses for the current salary cycle (calendar month until a salary is recorded)
+        const period = getCurrentPeriod(transactions, accountType);
         let monthlyIncome = 0;
         let expensesByCategory = {};
         let totalAllocated = 0;
         let totalSpent = 0;
 
         transactions.forEach(t => {
-            if (isThisMonth(t.date) && !isFuture(t.date)) {
+            if (isInPeriod(t, period)) {
                 const amt = parseFloat(t.amount);
                 if (isIncome(t)) monthlyIncome = roundMoney(monthlyIncome + amt);
                 if (isExpense(t)) {
@@ -93,7 +94,7 @@ const Budget = {
             container.appendChild(item);
             
             // Check for alert
-            const alertKey = `${monthKey(new Date())}|${category}`;
+            const alertKey = `${period.start.toISOString()}|${category}`;
             if (percentUsed > 100 && !Budget.alerted.has(alertKey)) {
                 Budget.alerted.add(alertKey);
                 showToast(`Budget exceeded for ${category}!`, 'warning');

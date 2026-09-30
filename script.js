@@ -169,7 +169,10 @@ const updateUI = () => {
     
     // Calculate global running balances for the whole account before filtering
     state.transactions = calculateRunningBalances(state.transactions);
-    
+
+    // "This month" = current salary cycle on Personal (calendar month elsewhere)
+    state.period = getCurrentPeriod(state.transactions, state.activeAccount);
+
     // Apply Ledger Filters
     applyFilters();
 
@@ -179,7 +182,7 @@ const updateUI = () => {
     if(window.Budget) window.Budget.render(state.transactions, state.activeAccount, state.settings);
     if(window.Goals && state.activeAccount === 'personal') window.Goals.render(state.transactions, state.settings);
     if(window.Charts && document.getElementById('analytics').classList.contains('active')) {
-        window.Charts.render(state.transactions);
+        window.Charts.render(state.transactions, state.period);
     }
 };
 
@@ -209,36 +212,62 @@ const switchAccount = (account) => {
 };
 
 // --- Dashboard Logic ---
-const getMonthlyHistory = (transactions) => {
-    const history = {};
-    transactions.forEach(t => {
-        if (!t.date) return;
-        const key = monthKey(t.date);
-        if (!history[key]) history[key] = { income: 0, expense: 0 };
-        if (isIncome(t)) history[key].income = roundMoney(history[key].income + parseFloat(t.amount));
-        else if (isExpense(t)) history[key].expense = roundMoney(history[key].expense + parseFloat(t.amount));
-    });
+const formatShortDate = (d) => d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 
-    return Object.keys(history).map(key => ({
-        month: key,
-        income: history[key].income,
-        expense: history[key].expense,
-        saved: roundMoney(history[key].income - history[key].expense)
-    })).sort((a, b) => b.month.localeCompare(a.month));
+// Savings = leftover from previous salary cycles. Without any salary recorded,
+// fall back to lifetime income minus expenses.
+const getSavingsTotal = (history, balances) => state.period.isSalaryCycle
+    ? balances.carriedOver
+    : roundMoney(history.reduce((sum, h) => sum + h.income - h.expense, 0));
+
+// Name a salary cycle after the month most of it falls in, so a salary paid early
+// (e.g. 28 Aug for September) is still called "September". A running cycle is
+// treated as about a month long.
+const cycleMonthName = (h) => {
+    const end = h.end ? h.end.getTime() : h.start.getTime() + 30 * 86400000;
+    const mid = new Date((h.start.getTime() + end) / 2);
+    return mid.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+};
+
+// Which month(s) the Savings total came from: the last finished month, plus earlier ones combined.
+// Returns HTML (month names and formatted amounts only); amounts are kept on one line.
+const getSavingsBreakdown = (history) => {
+    if (!state.period.isSalaryCycle) return 'Lifetime income minus expenses';
+    const finished = history.filter(h => !h.isCurrent); // newest first
+    if (finished.length === 0) return 'Nothing carried over yet';
+
+    const curr = state.settings.currency;
+    const amount = (v) => `<span class="nowrap">${formatCurrency(v, curr)}</span>`;
+    const [last, ...earlier] = finished;
+    const lastName = last.key === 'before' ? 'Before first salary' : cycleMonthName(last);
+    let html = `${lastName}: ${amount(last.leftover)}`;
+    if (earlier.length) {
+        const earlierTotal = roundMoney(earlier.reduce((sum, h) => sum + h.leftover, 0));
+        html += `<br>Earlier months: ${amount(earlierTotal)}`;
+    }
+    return html;
 };
 
 const renderDashboard = () => {
     const curr = state.settings.currency;
     const pastTxns = state.transactions.filter(t => !isFuture(t.date));
+    const period = state.period;
+    const balances = getCycleBalances(state.transactions, period);
 
-    DOM.dashBalance.textContent = formatCurrency(getCurrentBalance(state.transactions), curr);
+    DOM.dashBalance.textContent = formatCurrency(balances.available, curr);
+    const balanceSub = document.getElementById('dash-balance-sub');
+    if (balanceSub) {
+        balanceSub.textContent = period.isSalaryCycle
+            ? `Since salary on ${formatShortDate(period.start)}`
+            : state.activeAccount === 'personal' ? 'Add a Salary entry to start a monthly cycle' : '';
+    }
 
-    // Calculate monthly credit/debit
+    // Credit/debit for the current period
     let mCredit = 0, mDebit = 0;
     pastTxns.forEach(t => {
-        if(isThisMonth(t.date)) {
-            if(isIncome(t)) mCredit += parseFloat(t.amount);
-            else if(isExpense(t)) mDebit += parseFloat(t.amount);
+        if(isInPeriod(t, period)) {
+            if(isIncome(t)) mCredit = roundMoney(mCredit + parseFloat(t.amount));
+            else if(isExpense(t)) mDebit = roundMoney(mDebit + parseFloat(t.amount));
         }
     });
 
@@ -247,12 +276,13 @@ const renderDashboard = () => {
 
     // Savings logic (only for personal)
     if (state.activeAccount === 'personal') {
-        const history = getMonthlyHistory(pastTxns);
-        const totalSav = history.reduce((acc, currItem) => acc + currItem.saved, 0);
-        DOM.dashSavings.textContent = formatCurrency(totalSav, curr);
-        renderSavingsView(history);
+        const history = getPeriodHistory(state.transactions);
+        DOM.dashSavings.textContent = formatCurrency(getSavingsTotal(history, balances), curr);
+        document.getElementById('dash-savings-sub').innerHTML = getSavingsBreakdown(history);
+        renderSavingsView(history, balances);
     } else {
         DOM.dashSavings.textContent = 'N/A';
+        document.getElementById('dash-savings-sub').textContent = '';
     }
 
     // Shared Account specific logic
@@ -300,7 +330,7 @@ const renderDashboard = () => {
         });
     }
 
-    if(window.Charts) window.Charts.renderQuickCashFlow(state.transactions);
+    if(window.Charts) window.Charts.renderQuickCashFlow(state.transactions, state.period);
 };
 
 // Pool model: members deposit into the shared wallet and expenses are paid from it.
@@ -353,37 +383,60 @@ const renderSharedStatus = () => {
     DOM.sharedStatus.classList.remove('hidden');
 };
 
-const renderSavingsView = (history) => {
+// Month name in bold, with the salary-to-salary dates underneath
+const periodLabel = (h) => {
+    if (!h.byCycle) {
+        const [year, month] = h.key.split('-');
+        return `<strong>${new Date(year, month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}</strong>`;
+    }
+    if (h.key === 'before') return '<strong>Before first salary</strong>';
+    const range = h.end
+        ? `${formatShortDate(h.start)} – ${formatShortDate(new Date(h.end.getTime() - 86400000))}`
+        : `Since ${formatShortDate(h.start)}`;
+    return `<strong>${cycleMonthName(h)}</strong><br><small class="text-muted">${range}</small>`;
+};
+
+const renderSavingsView = (history, balances) => {
     const curr = state.settings.currency;
-    const totalSav = history.reduce((acc, current) => acc + current.saved, 0);
     const amountEl = document.getElementById('total-savings-amount');
-    if(amountEl) amountEl.textContent = formatCurrency(totalSav, curr);
-    
+    if(amountEl) {
+        const total = getSavingsTotal(history, balances);
+        amountEl.textContent = formatCurrency(total, curr);
+        amountEl.className = total < 0 ? 'text-debit' : 'text-credit';
+    }
+    const breakdownEl = document.getElementById('savings-breakdown');
+    if (breakdownEl) breakdownEl.innerHTML = getSavingsBreakdown(history);
+
+    const introEl = document.getElementById('savings-intro');
+    if (introEl) {
+        introEl.textContent = state.period.isSalaryCycle
+            ? 'Whatever is left of each month\'s salary moves here when your next salary is entered. Your Available Balance then starts fresh.'
+            : 'Add your salary as a Salary transaction to start monthly cycles. Until then this shows lifetime income minus expenses.';
+    }
+
     const listEl = document.getElementById('savings-list');
     if (!listEl) return;
-    
+
     if (history.length === 0) {
-        listEl.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 1rem; color: var(--text-muted);">No transaction history yet.</td></tr>';
+        listEl.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1rem; color: var(--text-muted);">No transaction history yet.</td></tr>';
         return;
     }
 
-    listEl.innerHTML = history.map(h => {
-        // Format YYYY-MM nicely
-        const [year, month] = h.month.split('-');
-        const d = new Date(year, month - 1);
-        const monthLabel = d.toLocaleString('default', { month: 'long', year: 'numeric' });
-        
-        return `
+    const signed = (v) => v === 0 ? '-' : `${v > 0 ? '+' : ''}${formatCurrency(v, curr)}`;
+    listEl.innerHTML = history.map(h => `
             <tr>
-                <td><strong>${monthLabel}</strong></td>
+                <td>
+                    ${periodLabel(h)}
+                    ${h.isCurrent ? '<br><small class="text-muted"><i class="fa-regular fa-clock"></i> In progress</small>' : ''}
+                </td>
                 <td class="text-credit">${formatCurrency(h.income, curr)}</td>
                 <td class="text-debit">${formatCurrency(h.expense, curr)}</td>
-                <td style="font-weight: 600; color: ${h.saved >= 0 ? 'var(--credit)' : 'var(--debit)'}">
-                    ${formatCurrency(h.saved, curr)}
+                <td class="text-muted">${signed(h.transfers)}</td>
+                <td style="font-weight: 600; color: ${h.leftover >= 0 ? 'var(--credit)' : 'var(--debit)'}">
+                    ${formatCurrency(h.leftover, curr)}${h.isCurrent && h.byCycle ? '<br><small class="text-muted" style="font-weight:400;">so far</small>' : ''}
                 </td>
             </tr>
-        `;
-    }).join('');
+        `).join('');
 };
 
 // --- Expenses Explorer Tab ---

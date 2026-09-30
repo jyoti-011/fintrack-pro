@@ -23,21 +23,22 @@ const Charts = {
         };
     },
 
-    render: (transactions) => {
+    render: (transactions, period) => {
         Charts.initDefaults();
-        Charts.renderQuickCashFlow(transactions);
+        Charts.renderQuickCashFlow(transactions, period);
         Charts.renderIncomeExpense(transactions);
         Charts.renderCategoryDistribution(transactions);
     },
 
-    renderQuickCashFlow: (transactions) => {
+    // Cash flow for the current period (salary cycle on Personal, else calendar month)
+    renderQuickCashFlow: (transactions, period) => {
         const ctx = document.getElementById('quick-cashflow-chart');
         if (!ctx) return;
         const colors = Charts.getColors();
 
         let credit = 0, debit = 0;
         transactions.forEach(t => {
-            if (isThisMonth(t.date) && !isFuture(t.date)) {
+            if (period ? isInPeriod(t, period) : (isThisMonth(t.date) && !isFuture(t.date))) {
                 if (isIncome(t)) credit += parseFloat(t.amount);
                 else if (isExpense(t)) debit += parseFloat(t.amount);
             }
