@@ -24,10 +24,10 @@
     <div class="app-container">
         
         <!-- Sidebar Navigation -->
-        <nav class="sidebar">
+        <nav class="sidebar" id="sidebar">
             <div class="logo">
-                <i class="fa-solid fa-building-columns"></i>
-                <span>FinTrack PRO</span>
+                <span class="logo-mark"><i class="fa-solid fa-building-columns"></i></span>
+                <span>FinTrack <b>PRO</b></span>
             </div>
             
             <ul class="nav-links">
@@ -47,12 +47,16 @@
                 </button>
             </div>
         </nav>
+        <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
 
         <!-- Main Content -->
         <main class="main-content">
             
             <!-- Top Header -->
             <header class="top-header">
+                <button id="menu-toggle" class="btn-icon menu-toggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
                 <div class="header-left">
                     <h1 id="page-title">Dashboard</h1>
                     <p id="current-datetime"></p>
@@ -78,61 +82,57 @@
             <section id="dashboard" class="page-section active">
                 
                 <!-- Shared Account specific alert -->
-                <div id="shared-account-status" class="alert-box hidden">
+                <div id="shared-account-status" class="card shared-status hidden">
                     <!-- Populated by JS: Shows member contributions -->
                 </div>
 
-                <!-- Summary Cards -->
-                <div class="summary-cards">
-                    <div class="card summary-card balance">
-                        <div class="card-icon"><i class="fa-solid fa-wallet"></i></div>
-                        <div class="card-info">
-                            <p>Available Balance</p>
-                            <h2 id="dash-balance">₹0.00</h2>
-                            <small id="dash-balance-sub" class="card-sub"></small>
-                        </div>
+                <!-- Overview banner -->
+                <div class="hero hero--dashboard">
+                    <div class="hero-main">
+                        <p class="hero-label"><i class="fa-solid fa-wallet"></i> Available to spend</p>
+                        <h2 id="dash-balance">₹0.00</h2>
+                        <p id="dash-balance-sub"></p>
+                        <div class="hero-bar"><div id="dash-spent-bar"></div></div>
+                        <p id="dash-spent-text" class="hero-bar-text"></p>
                     </div>
-                    <div class="card summary-card income">
-                        <div class="card-icon"><i class="fa-solid fa-arrow-turn-down"></i></div>
-                        <div class="card-info">
-                            <p>Monthly Credit (In)</p>
-                            <h2 id="dash-income">₹0.00</h2>
+                    <div class="hero-stats">
+                        <div class="hero-stat">
+                            <span><i class="fa-solid fa-arrow-turn-down"></i> <span id="dash-income-label">Money In</span></span>
+                            <strong id="dash-income">₹0.00</strong>
                         </div>
-                    </div>
-                    <div class="card summary-card expense">
-                        <div class="card-icon"><i class="fa-solid fa-arrow-turn-up"></i></div>
-                        <div class="card-info">
-                            <p>Monthly Debit (Out)</p>
-                            <h2 id="dash-expense">₹0.00</h2>
+                        <div class="hero-stat">
+                            <span><i class="fa-solid fa-arrow-turn-up"></i> <span id="dash-expense-label">Spent</span></span>
+                            <strong id="dash-expense">₹0.00</strong>
                         </div>
-                    </div>
-                    <div class="card summary-card savings">
-                        <div class="card-icon"><i class="fa-solid fa-piggy-bank"></i></div>
-                        <div class="card-info">
-                            <p>Savings (Left Over)</p>
-                            <h2 id="dash-savings">₹0.00</h2>
-                            <small id="dash-savings-sub" class="card-sub"></small>
+                        <div class="hero-stat">
+                            <span><i class="fa-solid fa-piggy-bank"></i> <span id="dash-savings-label">Saved from Previous Months</span></span>
+                            <strong id="dash-savings">₹0.00</strong>
+                            <small id="dash-savings-sub"></small>
                         </div>
                     </div>
                 </div>
 
                 <!-- Dashboard Grid -->
                 <div class="dashboard-grid">
-                    <div class="card recent-transactions">
+                    <div class="card">
                         <div class="card-header">
-                            <h3>Recent Activity</h3>
-                            <button class="btn-text" onclick="document.querySelector('li[data-target=\'ledger\']').click()">Full Statement</button>
+                            <h3 class="card-title"><span class="title-icon"><i class="fa-solid fa-clock-rotate-left"></i></span> Recent Activity</h3>
+                            <button class="btn-text" data-goto="ledger">Full Statement <i class="fa-solid fa-arrow-right"></i></button>
                         </div>
                         <div class="transaction-list" id="recent-transaction-list">
                             <!-- Populated by JS -->
                         </div>
                     </div>
-                    <div class="card quick-analytics">
+                    <div class="card">
                         <div class="card-header">
-                            <h3>Cash Flow</h3>
+                            <h3 class="card-title"><span class="title-icon"><i class="fa-solid fa-chart-pie"></i></span> Cash Flow</h3>
                         </div>
                         <div class="chart-container">
                             <canvas id="quick-cashflow-chart"></canvas>
+                            <div class="chart-center">
+                                <strong id="cashflow-net">₹0.00</strong>
+                                <span>net this month</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -140,6 +140,22 @@
 
             <!-- Ledger Section (Bank Statement Style) -->
             <section id="ledger" class="page-section">
+                <!-- Totals for whatever the filters currently show -->
+                <div class="stat-strip">
+                    <div class="stat-tile" style="--accent: var(--credit);">
+                        <span class="stat-icon"><i class="fa-solid fa-arrow-turn-down"></i></span>
+                        <div><small>Credit (In)</small><strong id="ledger-total-in">₹0.00</strong></div>
+                    </div>
+                    <div class="stat-tile" style="--accent: var(--debit);">
+                        <span class="stat-icon"><i class="fa-solid fa-arrow-turn-up"></i></span>
+                        <div><small>Debit (Out)</small><strong id="ledger-total-out">₹0.00</strong></div>
+                    </div>
+                    <div class="stat-tile" style="--accent: var(--primary);">
+                        <span class="stat-icon"><i class="fa-solid fa-hashtag"></i></span>
+                        <div><small>Transactions</small><strong id="ledger-count">0</strong></div>
+                    </div>
+                </div>
+
                 <div class="card table-card">
                     <div class="card-header filters-header">
                         <div class="search-box">
@@ -155,8 +171,8 @@
                             <select id="filter-date">
                                 <option value="all">All Time</option>
                             </select>
-                            <button id="btn-export-pdf" class="btn btn-secondary" style="padding: 0.5rem 1rem;"><i class="fa-solid fa-file-pdf"></i> PDF</button>
-                            <button id="btn-export-csv" class="btn btn-secondary" style="padding: 0.5rem 1rem;"><i class="fa-solid fa-file-csv"></i> CSV</button>
+                            <button id="btn-export-pdf" class="btn btn-secondary"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                            <button id="btn-export-csv" class="btn btn-secondary"><i class="fa-solid fa-file-csv"></i> CSV</button>
                         </div>
                     </div>
                     
@@ -169,7 +185,7 @@
                                     <th>Description / Category</th>
                                     <th>Credit (In)</th>
                                     <th>Debit (Out)</th>
-                                    <th>Balance</th>
+                                    <th title="Total in the account: this month's available balance plus savings">Account Balance</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -186,115 +202,124 @@
 
             <!-- Monthly Expenses Explorer Section -->
             <section id="expenses" class="page-section">
-                <div class="card mb-4" style="display: flex; justify-content: space-between; align-items: center;">
-                    <h3>Monthly Expenses Report</h3>
-                    <select id="expense-month-select" class="form-select" style="width: 200px;">
-                        <option value="">Select Month...</option>
-                    </select>
-                </div>
-
-                <div class="summary-cards">
-                    <div class="card summary-card balance">
-                        <div class="card-icon"><i class="fa-solid fa-wallet"></i></div>
-                        <div class="card-info">
-                            <p>Account Balance (End of Month)</p>
-                            <h2 id="exp-balance">₹0.00</h2>
+                <div class="hero hero--expenses">
+                    <div class="hero-main">
+                        <div class="hero-head">
+                            <p class="hero-label"><i class="fa-solid fa-receipt"></i> <span id="exp-hero-label">Spent this month</span></p>
+                            <select id="expense-month-select" class="hero-select" aria-label="Month">
+                                <option value="">Select Month...</option>
+                            </select>
                         </div>
+                        <h2 id="exp-expense">₹0.00</h2>
+                        <p id="exp-period-sub"></p>
+                        <div class="hero-bar"><div id="exp-spent-bar"></div></div>
+                        <p id="exp-spent-text" class="hero-bar-text"></p>
                     </div>
-                    <div class="card summary-card income">
-                        <div class="card-icon"><i class="fa-solid fa-arrow-turn-down"></i></div>
-                        <div class="card-info">
-                            <p>Month Credit (In)</p>
-                            <h2 id="exp-income">₹0.00</h2>
+                    <div class="hero-stats">
+                        <div class="hero-stat">
+                            <span><i class="fa-solid fa-arrow-turn-down"></i> Money In</span>
+                            <strong id="exp-income">₹0.00</strong>
                         </div>
-                    </div>
-                    <div class="card summary-card expense">
-                        <div class="card-icon"><i class="fa-solid fa-arrow-turn-up"></i></div>
-                        <div class="card-info">
-                            <p>Month Debit (Out)</p>
-                            <h2 id="exp-expense">₹0.00</h2>
+                        <div class="hero-stat">
+                            <span><i class="fa-solid fa-piggy-bank"></i> Left Over (Saved)</span>
+                            <strong id="exp-saved">₹0.00</strong>
                         </div>
-                    </div>
-                    <div class="card summary-card savings">
-                        <div class="card-icon"><i class="fa-solid fa-piggy-bank"></i></div>
-                        <div class="card-info">
-                            <p>Net Saved</p>
-                            <h2 id="exp-saved">₹0.00</h2>
+                        <div class="hero-stat">
+                            <span><i class="fa-solid fa-building-columns"></i> Account Balance at Month End</span>
+                            <strong id="exp-balance">₹0.00</strong>
                         </div>
                     </div>
                 </div>
 
-                <div class="card mt-4 table-card">
-                    <div class="card-header">
-                        <h3 id="exp-list-title">Expenses List</h3>
+                <div class="expenses-grid">
+                    <div class="card table-card">
+                        <div class="card-header table-card-header">
+                            <h3 class="card-title"><span class="title-icon"><i class="fa-solid fa-list"></i></span> <span id="exp-list-title">Expenses</span></h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="transaction-table bank-statement compact">
+                                <thead>
+                                    <tr>
+                                        <th>Date/Time</th>
+                                        <th>Description / Category</th>
+                                        <th>Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="exp-table-body">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    <div class="table-responsive">
-                        <table class="transaction-table bank-statement">
-                            <thead>
-                                <tr>
-                                    <th>Date/Time</th>
-                                    <th>Description / Category</th>
-                                    <th>Amount</th>
-                                </tr>
-                            </thead>
-                            <tbody id="exp-table-body">
-                                <!-- Populated by JS -->
-                            </tbody>
-                        </table>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><span class="title-icon"><i class="fa-solid fa-chart-simple"></i></span> Where it went</h3>
+                        </div>
+                        <div id="exp-categories" class="category-bars"></div>
                     </div>
                 </div>
             </section>
 
             <!-- Budget Planning Section -->
             <section id="budget" class="page-section">
-                <div class="budget-header">
-                    <div class="card budget-summary">
-                        <h3>Monthly Budget Overview</h3>
-                        <p>Total Allocated: <strong id="budget-allocated">₹0.00</strong></p>
-                        <p>Spent in Budgeted Categories: <strong id="budget-spent">₹0.00</strong></p>
-                        <p>Remaining: <strong id="budget-remaining">₹0.00</strong></p>
-
-                        <div class="budget-mode-toggle mt-4">
-                            <label class="switch-label">Mode for New Budgets:</label>
-                            <select id="budget-allocation-mode" class="form-select inline">
-                                <option value="manual">Manual Amount</option>
-                                <option value="percentage">Percentage based on Income</option>
+                <div class="hero hero--budget">
+                    <div class="hero-main">
+                        <p class="hero-label"><i class="fa-solid fa-bullseye"></i> Spent in budgeted categories</p>
+                        <h2 id="budget-spent">₹0.00</h2>
+                        <p id="budget-sub"></p>
+                        <div class="hero-bar"><div id="budget-bar"></div></div>
+                        <p id="budget-bar-text" class="hero-bar-text"></p>
+                    </div>
+                    <div class="hero-stats">
+                        <div class="hero-stat">
+                            <span><i class="fa-solid fa-layer-group"></i> Total allocated</span>
+                            <strong id="budget-allocated">₹0.00</strong>
+                        </div>
+                        <div class="hero-stat">
+                            <span><i class="fa-solid fa-hand-holding-dollar"></i> Remaining</span>
+                            <strong id="budget-remaining">₹0.00</strong>
+                        </div>
+                        <div class="hero-stat">
+                            <span><i class="fa-solid fa-sliders"></i> Mode for new budgets</span>
+                            <select id="budget-allocation-mode" class="hero-select" aria-label="Mode for new budgets">
+                                <option value="manual">Fixed amount</option>
+                                <option value="percentage">% of income</option>
                             </select>
                         </div>
                     </div>
                 </div>
 
-                <div class="card mt-4">
-                    <div class="card-header">
-                        <h3>Category Allocations</h3>
-                        <button id="btn-add-budget" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> Set Budget</button>
-                    </div>
-                    <div id="budget-list" class="budget-list">
-                        <!-- Populated by JS -->
-                    </div>
+                <div class="section-toolbar">
+                    <h3>Category Budgets</h3>
+                    <button id="btn-add-budget" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Set Budget</button>
+                </div>
+                <div id="budget-list" class="goals-grid">
+                    <!-- Populated by JS -->
                 </div>
             </section>
 
             <!-- Savings Section -->
             <section id="savings" class="page-section">
-                <div class="card mb-4">
-                    <h3>Accumulated Savings</h3>
-                    <p id="savings-intro" class="text-muted"></p>
-                    <div class="saving-stats mt-4">
-                        <div class="saving-stat-item">
-                            <p>Overall Total</p>
-                            <h2 id="total-savings-amount" class="text-credit">₹0.00</h2>
-                            <small id="savings-breakdown" class="card-sub"></small>
+                <div class="hero hero--savings">
+                    <div class="hero-main">
+                        <p class="hero-label"><i class="fa-solid fa-vault"></i> Saved from previous months</p>
+                        <h2 id="total-savings-amount">₹0.00</h2>
+                        <p id="savings-breakdown"></p>
+                    </div>
+                    <div class="hero-stats">
+                        <div class="hero-stat hero-note">
+                            <span><i class="fa-solid fa-circle-info"></i> How it works</span>
+                            <small id="savings-intro"></small>
                         </div>
                     </div>
                 </div>
-                
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Monthly Cycle History</h3>
-                        <p class="text-muted" style="margin:0; font-size: 0.9rem;">Each salary starts a new month.</p>
+
+                <div class="card table-card mt-4">
+                    <div class="card-header table-card-header">
+                        <h3 class="card-title"><span class="title-icon"><i class="fa-solid fa-calendar-check"></i></span> Monthly History</h3>
+                        <p class="text-muted" style="margin:0; font-size: 0.85rem;">Each salary starts a new month.</p>
                     </div>
-                    <div class="table-responsive mt-3">
+                    <div class="table-responsive">
                         <table class="transaction-table bank-statement">
                             <thead>
                                 <tr>
@@ -315,31 +340,31 @@
 
             <!-- Goals Section -->
             <section id="goals" class="page-section">
-                <div class="goals-hero">
-                    <div class="goals-hero-main">
-                        <p class="goals-hero-label"><i class="fa-solid fa-flag-checkered"></i> Saved towards your goals</p>
+                <div class="hero hero--goals">
+                    <div class="hero-main">
+                        <p class="hero-label"><i class="fa-solid fa-flag-checkered"></i> Saved towards your goals</p>
                         <h2 id="goals-total-saved">₹0.00</h2>
                         <p id="goals-total-sub"></p>
-                        <div class="goals-hero-bar"><div id="goals-total-bar"></div></div>
+                        <div class="hero-bar"><div id="goals-total-bar"></div></div>
                     </div>
-                    <div class="goals-hero-stats">
-                        <div class="goals-stat">
+                    <div class="hero-stats">
+                        <div class="hero-stat">
                             <span>Monthly commitment</span>
                             <strong id="goals-monthly">₹0.00</strong>
                             <small id="goals-monthly-pct"></small>
                         </div>
-                        <div class="goals-stat">
+                        <div class="hero-stat">
                             <span>Saved this month</span>
                             <strong id="goals-this-month">₹0.00</strong>
                         </div>
-                        <div class="goals-stat">
+                        <div class="hero-stat">
                             <span>Goals reached</span>
                             <strong id="goals-completed">0 / 0</strong>
                         </div>
                     </div>
                 </div>
 
-                <div class="goals-toolbar">
+                <div class="section-toolbar">
                     <h3>Your Goals</h3>
                     <button class="btn btn-primary" data-action="goal-new"><i class="fa-solid fa-plus"></i> New Goal</button>
                 </div>
@@ -350,13 +375,22 @@
             <section id="analytics" class="page-section">
                 <div class="charts-grid">
                     <div class="card chart-card">
-                        <h3>Income vs Expense (6 Months)</h3>
+                        <div class="chart-card-header">
+                            <h3 class="card-title"><span class="title-icon"><i class="fa-solid fa-chart-column"></i></span> <span id="chart-income-expense-title">Money In vs Spent (Last 6 Months)</span></h3>
+                        </div>
                         <div class="chart-container">
                             <canvas id="chart-income-expense"></canvas>
                         </div>
                     </div>
                     <div class="card chart-card">
-                        <h3>Expense Distribution</h3>
+                        <div class="chart-card-header">
+                            <h3 class="card-title"><span class="title-icon"><i class="fa-solid fa-chart-pie"></i></span> Spending by Category</h3>
+                            <select id="category-range" class="inline" aria-label="Period">
+                                <option value="current">This month</option>
+                                <option value="6">Last 6 months</option>
+                                <option value="all">All time</option>
+                            </select>
+                        </div>
                         <div class="chart-container">
                             <canvas id="chart-category"></canvas>
                         </div>
@@ -368,7 +402,7 @@
             <section id="settings" class="page-section">
                 <div class="settings-grid">
                     <div class="card settings-card">
-                        <h3>Preferences</h3>
+                        <h3 class="card-title"><span class="title-icon"><i class="fa-solid fa-sliders"></i></span> Preferences</h3>
                         <div class="form-group">
                             <label>Display Currency</label>
                             <p class="text-muted" style="font-size: 0.8rem; margin: 0 0 0.5rem;">Changes the symbol and format only. Amounts are not converted.</p>
@@ -383,7 +417,7 @@
                     </div>
 
                     <div class="card settings-card">
-                        <h3>Shared Account Members</h3>
+                        <h3 class="card-title"><span class="title-icon"><i class="fa-solid fa-users"></i></span> Shared Account Members</h3>
                         <p class="text-muted">Manage members contributing to the shared account.</p>
                         <div id="shared-members-list" class="mb-2"></div>
                         <div class="input-group">
@@ -393,7 +427,7 @@
                     </div>
 
                     <div class="card settings-card" style="grid-column: 1 / -1;">
-                        <h3>Data Management</h3>
+                        <h3 class="card-title"><span class="title-icon"><i class="fa-solid fa-database"></i></span> Data Management</h3>
                         <p class="text-muted">Backup your data or restore from a previous backup.</p>
                         <div class="data-actions">
                             <button id="btn-backup-data" class="btn btn-secondary"><i class="fa-solid fa-download"></i> Download Backup</button>
@@ -402,8 +436,8 @@
                         </div>
                         
                         <div class="danger-zone">
-                            <h4>Danger Zone</h4>
-                            <p class="text-muted">Resetting data will clear ALL transactions across ALL accounts.</p>
+                            <h4><i class="fa-solid fa-triangle-exclamation"></i> Danger Zone</h4>
+                            <p class="text-muted">Resetting deletes everything: transactions in all accounts, goals, budgets, shared members and settings.</p>
                             <button id="btn-reset-data" class="btn btn-danger"><i class="fa-solid fa-trash"></i> Reset All Data</button>
                         </div>
                     </div>
@@ -576,9 +610,15 @@
                         <input type="checkbox" id="goal-autosave">
                         <label for="goal-autosave" style="margin:0;"><strong>Auto-save every month</strong>: move the monthly amount into this goal automatically</label>
                     </div>
-                    <div id="goal-saveday-group" class="form-group hidden" style="margin: 0.75rem 0 0;">
-                        <label for="goal-saveday">On day of the month (e.g. salary day)</label>
-                        <input type="number" id="goal-saveday" min="1" max="28" value="1">
+                    <div id="goal-saveday-group" class="goal-trigger hidden">
+                        <label class="goal-trigger-option">
+                            <input type="radio" name="goal-trigger" value="salary" checked>
+                            <span><strong>When my salary is entered</strong><small>Saves as soon as you add a Salary transaction each month</small></span>
+                        </label>
+                        <label class="goal-trigger-option">
+                            <input type="radio" name="goal-trigger" value="day">
+                            <span><strong>On a fixed day of the month</strong><small>Day <input type="number" id="goal-saveday" min="1" max="28" value="1" aria-label="Day of the month"></small></span>
+                        </label>
                     </div>
                 </div>
 

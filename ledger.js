@@ -13,7 +13,7 @@ const Ledger = {
         tbody.innerHTML = '';
         
         if (transactions.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 3rem; color: var(--text-muted);">No transactions found for this account.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7">${emptyState('fa-magnifying-glass', 'No transactions found', 'Try a different search or filter, or add a new transaction.')}</td></tr>`;
             pagination.innerHTML = '';
             return;
         }
@@ -41,15 +41,20 @@ const Ledger = {
             if (t.notes) descStr += `<br><small class="text-muted">${escapeHTML(t.notes)}</small>`;
 
             // Future-dated entries aren't part of the current balance yet
-            const scheduled = isFuture(t.date) ? '<br><small class="text-muted"><i class="fa-regular fa-clock"></i> Scheduled</small>' : '';
+            const scheduled = isFuture(t.date) ? '<br><span class="pill pill-muted"><i class="fa-regular fa-clock"></i> Scheduled</span>' : '';
 
             tr.innerHTML = `
                 <td>${formatDateTime(t.date)}${scheduled}</td>
-                <td><span style="font-family: monospace; color: var(--text-muted);">${escapeHTML(t.id)}<br>${escapeHTML(t.refNo)}</span></td>
+                <td><span class="mono text-muted">${escapeHTML(t.id)}<br>${escapeHTML(t.refNo)}</span></td>
                 <td>
-                    ${descStr}
-                    <div class="mt-2"><span class="badge ${isCredit ? 'credit' : 'debit'}">${escapeHTML(t.category)}</span></div>
-                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">Via ${escapeHTML(t.paymentMethod)}</div>
+                    <div class="row-with-icon">
+                        <span class="row-icon ${isCredit ? 'credit' : 'debit'}"><i class="fa-solid ${categoryIcon(t.category)}"></i></span>
+                        <div>
+                            ${descStr}
+                            <div class="mt-2"><span class="badge ${isCredit ? 'credit' : 'debit'}">${escapeHTML(t.category)}</span>
+                            <span class="text-muted" style="font-size: 0.7rem; margin-left: 0.4rem;">via ${escapeHTML(t.paymentMethod)}</span></div>
+                        </div>
+                    </div>
                 </td>
                 <td style="font-weight: 500;">${creditHtml}</td>
                 <td style="font-weight: 500;">${debitHtml}</td>

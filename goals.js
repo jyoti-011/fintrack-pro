@@ -9,8 +9,6 @@
 const GOAL_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#f43f5e', '#0ea5e9', '#8b5cf6', '#ec4899', '#14b8a6'];
 const GOAL_ICONS = ['fa-house', 'fa-car', 'fa-plane', 'fa-graduation-cap', 'fa-ring', 'fa-laptop',
     'fa-umbrella-beach', 'fa-shield-heart', 'fa-baby', 'fa-mobile-screen', 'fa-heart-pulse', 'fa-piggy-bank'];
-const RING_RADIUS = 42;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 // Next occurrence of a day-of-month (at 9 AM) strictly after now
 const nextSaveDate = (day) => {
@@ -89,25 +87,52 @@ const Goals = {
         return { kind: 'idle', icon: 'fa-circle-info', text: 'Set a monthly amount to see when you\'ll get there' };
     },
 
-    // Auto-save: add each goal's monthly amount on its save day, catching up on missed months
+    // The cycle that counts as "already handled" when salary-triggered auto-save is switched on:
+    // the current salary month (so it starts with the next salary), or the creation time if no salary yet
+    currentCycleMarker: (fallbackISO) => {
+        const starts = getSalaryCycleStarts(getTransactions('personal'));
+        return starts.length ? starts[starts.length - 1].toISOString() : fallbackISO;
+    },
+
+    // Auto-save each goal's monthly amount, either when a new salary is entered (default) or on a
+    // fixed day of the month. Catches up on missed months and stops once the goal is reached.
+    // Safe to call repeatedly: each salary month / save day is handled once.
     runAutoSave: () => {
         const goals = getGoals();
         const now = new Date();
+        const starts = getSalaryCycleStarts(getTransactions('personal'));
         let count = 0;
         let changed = false;
 
         goals.forEach(goal => {
             const monthly = parseFloat(goal.monthlyAmount) || 0;
-            if (!goal.autoSave || monthly <= 0 || !goal.nextAutoDate) return;
-
+            if (!goal.autoSave || monthly <= 0) return;
             let saved = Goals.getSaved(goal, getTransactions('personal'));
-            while (new Date(goal.nextAutoDate) <= now && saved < goal.target) {
+            const save = (date) => {
                 const amount = roundMoney(Math.min(monthly, goal.target - saved));
-                addTransaction('personal', Goals.buildTxn(goal, 'add', amount, goal.nextAutoDate, 'Auto-saved from salary'));
+                addTransaction('personal', Goals.buildTxn(goal, 'add', amount, date, 'Auto-saved from salary'));
                 saved = roundMoney(saved + amount);
-                goal.nextAutoDate = addMonthsClamped(goal.nextAutoDate, 1, goal.saveDay).toISOString();
                 count++;
                 changed = true;
+            };
+
+            if ((goal.autoSaveTrigger || 'salary') === 'salary') {
+                // Goals set up before salary-triggered saving existed: start from the next salary
+                if (!goal.lastAutoCycleStart) {
+                    goal.lastAutoCycleStart = Goals.currentCycleMarker(goal.createdAt || now.toISOString());
+                    changed = true;
+                }
+                const last = new Date(goal.lastAutoCycleStart);
+                starts.filter(s => s > last).forEach(s => {
+                    if (saved < goal.target) save(new Date(s.getTime() + 1000).toISOString()); // just after the salary
+                    goal.lastAutoCycleStart = s.toISOString();
+                    changed = true;
+                });
+            } else if (goal.nextAutoDate) {
+                while (new Date(goal.nextAutoDate) <= now && saved < goal.target) {
+                    save(goal.nextAutoDate);
+                    goal.nextAutoDate = addMonthsClamped(goal.nextAutoDate, 1, goal.saveDay).toISOString();
+                }
             }
         });
 
@@ -205,7 +230,10 @@ const Goals = {
         let plan = monthly > 0
             ? `<span><i class="fa-solid fa-wallet"></i> ${formatCurrency(monthly, curr)}/month from salary</span>`
             : '<span><i class="fa-solid fa-wallet"></i> No monthly amount set</span>';
-        if (goal.autoSave && monthly > 0 && !done) plan += `<span class="goal-chip"><i class="fa-solid fa-bolt"></i> Auto-save on the ${ordinal(goal.saveDay)}</span>`;
+        if (goal.autoSave && monthly > 0 && !done) {
+            const when = (goal.autoSaveTrigger || 'salary') === 'salary' ? 'when salary arrives' : `on the ${ordinal(goal.saveDay)}`;
+            plan += `<span class="goal-chip"><i class="fa-solid fa-bolt"></i> Auto-save ${when}</span>`;
+        }
         if (monthly > 0 && !done) {
             const monthPct = Math.min(100, Math.max(0, (thisMonth / monthly) * 100));
             plan += `<div class="goal-month">
@@ -229,17 +257,7 @@ const Goals = {
                 </div>
 
                 <div class="goal-body">
-                    <div class="goal-ring">
-                        <svg viewBox="0 0 100 100" aria-hidden="true">
-                            <circle class="goal-ring-track" cx="50" cy="50" r="${RING_RADIUS}"></circle>
-                            <circle class="goal-ring-fill" cx="50" cy="50" r="${RING_RADIUS}"
-                                stroke-dasharray="${RING_CIRCUMFERENCE}"
-                                stroke-dashoffset="${RING_CIRCUMFERENCE * (1 - pct / 100)}"></circle>
-                        </svg>
-                        <div class="goal-ring-label">
-                            ${done ? '<i class="fa-solid fa-trophy"></i>' : `<strong>${pct.toFixed(0)}%</strong><span>saved</span>`}
-                        </div>
-                    </div>
+                    ${progressRing(pct, done ? '<i class="fa-solid fa-trophy"></i>' : `<strong>${pct.toFixed(0)}%</strong><span>saved</span>`)}
                     <div class="goal-figures">
                         <div><span>Saved</span><strong>${formatCurrency(saved, curr)}</strong></div>
                         <div><span>Target</span><strong>${formatCurrency(goal.target, curr)}</strong></div>
@@ -276,6 +294,8 @@ const Goals = {
         document.getElementById('goal-monthly').value = goal && goal.monthlyAmount ? goal.monthlyAmount : '';
         document.getElementById('goal-autosave').checked = goal ? !!goal.autoSave : false;
         document.getElementById('goal-saveday').value = goal ? (goal.saveDay || 1) : 1;
+        const trigger = (goal && goal.autoSaveTrigger) || 'salary';
+        form.querySelector(`input[name="goal-trigger"][value="${trigger}"]`).checked = true;
 
         Goals.updateFormPreview();
         document.getElementById('goal-modal').classList.add('show');
@@ -310,6 +330,8 @@ const Goals = {
         }
 
         document.getElementById('goal-saveday-group').classList.toggle('hidden', !document.getElementById('goal-autosave').checked);
+        const byDay = document.querySelector('input[name="goal-trigger"]:checked')?.value === 'day';
+        document.getElementById('goal-saveday').disabled = !byDay;
     },
 
     submitGoal: (e) => {
@@ -327,6 +349,7 @@ const Goals = {
             targetDate: document.getElementById('goal-date').value,
             monthlyAmount: roundMoney(document.getElementById('goal-monthly').value || 0),
             autoSave: document.getElementById('goal-autosave').checked,
+            autoSaveTrigger: form.querySelector('input[name="goal-trigger"]:checked').value,
             saveDay: Math.min(28, Math.max(1, parseInt(document.getElementById('goal-saveday').value, 10) || 1))
         };
 
@@ -334,9 +357,15 @@ const Goals = {
         if (!(data.target > 0)) return showToast('Enter a target amount.', 'error');
         if (data.autoSave && !(data.monthlyAmount > 0)) return showToast('Set a monthly amount to use auto-save.', 'error');
 
-        // Schedule the next auto-save, keeping the current one if nothing about it changed
-        const keepSchedule = existing && existing.autoSave && existing.saveDay === data.saveDay && existing.nextAutoDate;
-        data.nextAutoDate = data.autoSave ? (keepSchedule ? existing.nextAutoDate : nextSaveDate(data.saveDay).toISOString()) : null;
+        // Schedule auto-save, keeping the current schedule if nothing about it changed
+        const wasSame = existing && existing.autoSave && (existing.autoSaveTrigger || 'salary') === data.autoSaveTrigger;
+        const byDay = data.autoSave && data.autoSaveTrigger === 'day';
+        const keepDay = wasSame && existing.saveDay === data.saveDay && existing.nextAutoDate;
+        data.nextAutoDate = byDay ? (keepDay ? existing.nextAutoDate : nextSaveDate(data.saveDay).toISOString()) : null;
+        // Salary-triggered: start with the next salary (the current month counts as handled)
+        data.lastAutoCycleStart = data.autoSave && !byDay
+            ? (wasSame && existing.lastAutoCycleStart ? existing.lastAutoCycleStart : Goals.currentCycleMarker(new Date().toISOString()))
+            : null;
 
         if (existing) {
             Object.assign(existing, data);
@@ -458,6 +487,9 @@ const Goals = {
         ['goal-target', 'goal-starting', 'goal-date', 'goal-autosave'].forEach(id =>
             document.getElementById(id).addEventListener('input', Goals.updateFormPreview));
         document.getElementById('goal-autosave').addEventListener('change', Goals.updateFormPreview);
+        document.getElementById('goal-form').addEventListener('change', (e) => {
+            if (e.target.name === 'goal-trigger') Goals.updateFormPreview();
+        });
 
         document.addEventListener('click', (e) => {
             const btn = e.target.closest('[data-action^="goal-"]');

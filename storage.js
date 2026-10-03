@@ -158,25 +158,44 @@ const getCycleBalances = (transactions, period) => {
     return { available: roundMoney(current - carriedOver), carriedOver };
 };
 
-// History rows (newest first): one per salary cycle, or per calendar month if no salary is recorded.
+// Which period a transaction belongs to: a salary cycle index ("0", "1", ...; "before" for entries
+// before the first salary), or a calendar month key ("YYYY-MM") when cycles aren't used
+const getPeriodKey = (dateStr, starts, byCycle) => {
+    if (!byCycle) return monthKey(dateStr);
+    const d = new Date(dateStr);
+    const idx = starts.findLastIndex(s => s <= d);
+    return idx === -1 ? 'before' : String(idx);
+};
+
+// Name a salary cycle after the month most of it falls in, so a salary paid early
+// (e.g. 28 Aug for September) is still called "September". A running cycle is
+// treated as about a month long.
+const cycleMonthName = (h) => {
+    if (!h.byCycle) {
+        const [year, month] = h.key.split('-');
+        return new Date(year, month - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    }
+    if (h.key === 'before') return 'Before first salary';
+    const end = h.end ? h.end.getTime() : h.start.getTime() + 30 * 86400000;
+    const mid = new Date((h.start.getTime() + end) / 2);
+    return mid.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+};
+
+// History rows (newest first): one per salary cycle, or per calendar month if no salary is recorded
+// (or useCycles is false, e.g. for the Shared and Company accounts).
 // leftover = net change in the balance over the period (money that stayed, i.e. went to Savings);
-// transfers = money moved to goals / the shared wallet (negative) or back (positive).
-const getPeriodHistory = (transactions) => {
+// transfers = money moved to goals / the shared wallet (negative) or back (positive);
+// closingBalance = account balance at the end of the period (needs running balances).
+const getPeriodHistory = (transactions, useCycles = true) => {
     const past = transactions.filter(t => !isFuture(t.date));
-    const starts = getSalaryCycleStarts(past);
+    const starts = useCycles ? getSalaryCycleStarts(past) : [];
     const byCycle = starts.length > 0;
     const periods = {};
 
-    past.forEach(t => {
-        const d = new Date(t.date);
-        let key;
-        if (byCycle) {
-            const idx = starts.findLastIndex(s => s <= d);
-            key = idx === -1 ? 'before' : String(idx);
-        } else {
-            key = monthKey(t.date);
-        }
-        const p = periods[key] || (periods[key] = { key, income: 0, expense: 0, net: 0 });
+    // Newest first, so the first entry seen in each period carries its closing balance
+    [...past].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(t => {
+        const key = getPeriodKey(t.date, starts, byCycle);
+        const p = periods[key] || (periods[key] = { key, income: 0, expense: 0, net: 0, closingBalance: t.runningBalance });
         const amt = parseFloat(t.amount);
         if (isIncome(t)) p.income = roundMoney(p.income + amt);
         if (isExpense(t)) p.expense = roundMoney(p.expense + amt);
@@ -193,6 +212,7 @@ const getPeriodHistory = (transactions) => {
         return {
             ...p,
             byCycle,
+            starts,
             start,
             end,
             isCurrent: byCycle ? p.key === String(starts.length - 1) : p.key === monthKey(new Date()),
