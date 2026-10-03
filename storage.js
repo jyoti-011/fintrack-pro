@@ -167,18 +167,28 @@ const getPeriodKey = (dateStr, starts, byCycle) => {
     return idx === -1 ? 'before' : String(idx);
 };
 
-// Name a salary cycle after the month most of it falls in, so a salary paid early
-// (e.g. 28 Aug for September) is still called "September". A running cycle is
-// treated as about a month long.
+// Each salary month is named after the calendar month the salary arrived in. If two salaries
+// land in the same calendar month (e.g. 1 Sep, then next month's salary paid early on 30 Sep),
+// the later one takes the following month's name, so names never repeat.
+const getCycleMonths = (starts) => {
+    const months = [];
+    starts.forEach((s, i) => {
+        let m = new Date(s.getFullYear(), s.getMonth(), 1);
+        const prev = months[i - 1];
+        if (prev && m <= prev) m = new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+        months.push(m);
+    });
+    return months;
+};
+
 const cycleMonthName = (h) => {
+    const label = (d) => d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
     if (!h.byCycle) {
         const [year, month] = h.key.split('-');
-        return new Date(year, month - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        return label(new Date(year, month - 1));
     }
     if (h.key === 'before') return 'Before first salary';
-    const end = h.end ? h.end.getTime() : h.start.getTime() + 30 * 86400000;
-    const mid = new Date((h.start.getTime() + end) / 2);
-    return mid.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    return label(getCycleMonths(h.starts)[Number(h.key)]);
 };
 
 // History rows (newest first): one per salary cycle, or per calendar month if no salary is recorded
